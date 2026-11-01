@@ -1,6 +1,52 @@
-# BPAgent · AI 编排台（agent-hub）
+<div align="center">
 
-把多个 AI 编程代理编成一支队伍：**组长**拆任务、派活、审查、汇总，**队员**并行干活。本地网页实时显示每个任务是哪个 AI 在做、它在想什么、调了哪些工具，随时可以在原生界面打开它的会话。
+# BPAgent
+
+**把多个 AI 编程代理编成一支队伍**
+
+组长拆解任务、派活、审查、汇总；队员并行执行。额度只花在刀刃上。
+
+<sub>Multi-agent orchestration console for Claude Code · Codex · DeepSeek Harness</sub>
+
+<br>
+
+![version](https://img.shields.io/badge/version-0.10.0-0e7c6b?style=flat-square)
+![node](https://img.shields.io/badge/node-%E2%89%A520-2b3d8f?style=flat-square)
+![dependencies](https://img.shields.io/badge/dependencies-0-35d6ff?style=flat-square)
+![platform](https://img.shields.io/badge/platform-Windows-555?style=flat-square)
+![license](https://img.shields.io/badge/license-MIT-orange?style=flat-square)
+
+<br>
+
+<img src="docs/screenshots/running.jpg" alt="BPAgent 指挥中心：组长与队员并行执行中" width="920">
+
+</div>
+
+---
+
+## 为什么做它
+
+单个 AI 编程代理很强，但额度和注意力都是有限的。BPAgent 不再让你在多个 CLI 之间来回切窗口，而是把它们编成一支分工明确的团队：便宜的模型干体力活，主力模型做常规实现，最贵的专家只接疑难问题并做一次终审。你只需要说出目标，剩下的由**组长**去规划、派发、审查、返工，**指挥中心**实时展示整条流水线。
+
+## 核心特性
+
+- **组长 + 队员协作**：组长拆任务、定依赖、逐个审查、必要时返工，最后汇总；队员各自独立会话并行执行，可随时向组长提问。
+- **按档位分工，省专家额度**：经济型（DeepSeek）做机械活，主力（Codex）做常规实现，专家（Claude）只接难题并做一次整体终审。
+- **额度用尽自动等待**：Claude 额度触顶时按恢复时间封锁，在跑的任务原地等待，到点续接原会话，不惊动组长。
+- **worktree 隔离并行**：每个任务在独立的 git worktree 里做，通过后合并回集成分支；冲突会交回队员解决。
+- **实时指挥中心**：任务晶格、调度队列、Token 曲线、工具调用、执行轨迹和调度日志，一屏看清谁在做什么；点任意节点可看实时输出，也可随时插话。
+- **自定义模型**：任意反代 / 中转站（Anthropic Messages、OpenAI Responses、Chat Completions）都能接入，套在现成的 CLI 上跑。
+- **中断续跑**：编排被中断或失败后，可以用原会话继续运行。
+- **零依赖**：Node 20+ 即可运行，配置是热加载的 JSON，新增一个 AI 不用改代码。
+
+## 界面一览
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/done.jpg" alt="编排完成"><br><sub><b>编排完成</b>：任务、审查、Token 与调度账本一目了然</sub></td>
+<td width="50%"><img src="docs/screenshots/drawer.jpg" alt="任务抽屉"><br><sub><b>任务抽屉</b>：实时输出、工具调用、切换模型与思考强度</sub></td>
+</tr>
+</table>
 
 ## 启动
 
