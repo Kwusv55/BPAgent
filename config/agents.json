@@ -1,0 +1,137 @@
+{
+  "agents": [
+    {
+      "id": "dsh",
+      "name": "DeepSeek Harness",
+      "color": "#4d7cfe",
+      "type": "acp",
+      "enabled": true,
+      "tier": "cheap",
+      "description": "经济型（DeepSeek v4.1 Flash）：便宜、速度快。负责简单活：机械改动、批量替换、写文档和注释、补测试用例、收集资料、做 Office 文件（自带 docx/pptx/xlsx 技能）",
+      "roles": [
+        "leader",
+        "member"
+      ],
+      "maxConcurrent": 2,
+      "command": "${env:DSH_HOME}\\DeepSeek Harness.exe",
+      "args": [
+        "--expose-internals",
+        "${env:DSH_HOME}\\resources\\app.asar\\dsh\\node_modules\\@deepseek-ai\\dsh-desktop-host\\lib\\cli.js",
+        "--profile",
+        "acp",
+        "--patch",
+        "${root}\\config\\dsh-relay.patch.yml"
+      ],
+      "env": {
+        "ELECTRON_RUN_AS_NODE": "1",
+        "RELAY_API_KEY": "${env:RELAY_API_KEY|DEEPSEEK_API_KEY}"
+      },
+      "unsetEnv": [
+        "DEEPSEEK_API_KEY"
+      ],
+      "acp": {
+        "configOptions": {
+          "model": "[\"relay\",\"deepseek-v4.1-flash\"]"
+        }
+      },
+      "native": [
+        {
+          "label": "打开 DSH 桌面版",
+          "command": [
+            "${env:DSH_HOME}\\DeepSeek Harness.exe"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "claude",
+      "name": "Claude Code",
+      "color": "#d97757",
+      "type": "claude",
+      "enabled": true,
+      "tier": "expert",
+      "description": "专家（Claude，Pro 订阅额度有限）：只接困难任务——架构和接口设计、跨模块疑难 bug 定位、并发/性能/安全问题、别人失败过的问题；全部任务完成后做一次整体终审。默认 Sonnet，困难任务在额度充足时自动换 Opus",
+      "roles": [
+        "leader",
+        "member"
+      ],
+      "maxConcurrent": 2,
+      "command": "claude",
+      "args": [],
+      "claude": {
+        "model": "sonnet",
+        "permissionMode": "acceptEdits",
+        "strictMcp": true,
+        "lean": true,
+        "hard": {
+          "model": "opus",
+          "effort": "high"
+        }
+      },
+      "native": [
+        {
+          "label": "在终端续接会话",
+          "command": [
+            "wt.exe",
+            "-w",
+            "0",
+            "new-tab",
+            "-d",
+            "{cwd}",
+            "--title",
+            "{title}",
+            "cmd",
+            "/k",
+            "claude",
+            "--resume",
+            "{sessionId}"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "codex",
+      "name": "Codex",
+      "color": "#10a37f",
+      "type": "codex",
+      "enabled": true,
+      "tier": "main",
+      "description": "主力（OpenAI Codex / GPT，走 ~/.codex/config.toml 的模型和中转）：默认组长，负责规划、逐个审查；也是主力实现者，负责常规功能、重构、普通 bug、跑测试修测试。审批和沙箱沿用 Codex 自己的配置",
+      "roles": [
+        "leader",
+        "member"
+      ],
+      "maxConcurrent": 2,
+      "command": "${env:LOCALAPPDATA}\\OpenAI\\Codex\\bin\\*\\codex.exe",
+      "args": [],
+      "codex": {},
+      "native": [
+        {
+          "label": "在终端续接会话",
+          "command": [
+            "wt.exe",
+            "-w",
+            "0",
+            "new-tab",
+            "-d",
+            "{cwd}",
+            "--title",
+            "{title}",
+            "cmd",
+            "/k",
+            "{command}",
+            "resume",
+            "{sessionId}"
+          ]
+        },
+        {
+          "label": "打开 ChatGPT 桌面版",
+          "command": [
+            "explorer.exe",
+            "shell:AppsFolder\\OpenAI.Codex_2p2nqsd0c76g0!App"
+          ]
+        }
+      ]
+    }
+  ]
+}

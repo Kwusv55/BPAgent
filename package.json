@@ -1,0 +1,11 @@
+{
+  "name": "bpagent",
+  "version": "0.10.0",
+  "description": "AI 编排台：把多个 AI 编程代理（DeepSeek Harness、Claude Code 等）编成组长 + 队员协作完成任务",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/server.js"
+  }
+}

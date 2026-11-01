@@ -1,0 +1,18 @@
+{
+  "port": 7788,
+  "workspaceRoot": "${env:USERPROFILE}\\AgentHub\\workspaces",
+  "worktreeRoot": "${env:USERPROFILE}\\AgentHub\\worktrees",
+  "defaults": {
+    "leaderId": "codex",
+    "policy": "auto",
+    "isolation": "auto",
+    "maxRounds": 2,
+    "maxParallel": 3,
+    "finalReview": true
+  },
+  "routing": {
+    "tightAt": 70,
+    "strongModelBelow": 50,
+    "finalReviewSkipAt": 85
+  }
+}

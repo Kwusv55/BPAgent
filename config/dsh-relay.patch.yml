@@ -1,0 +1,19 @@
+# dsh 的 acp/headless profile 默认禁用凭据插件、走 DeepSeek 官方通道；
+# 这里改成走你自己的中转站：把 baseURL 换成中转站地址，key 由进程环境变量 RELAY_API_KEY 提供。
+# 不想手改文件，也可以直接在网页的「模型」对话框里添加自定义模型。
+- id: llm-pi-ai
+  name: "@deepseek-ai/dsh-llm-pi-ai"
+  config:
+    providers:
+      relay:
+        apiKeyEnv: RELAY_API_KEY
+        api: openai-responses
+        baseURL: https://example.com/v1
+        models:
+          - id: deepseek-v4.1-flash
+            name: deepseek-v4.1-flash
+- id: agent-default-model
+  name: "@deepseek-ai/dsh-agent-default-model"
+  config:
+    provider: relay
+    model: deepseek-v4.1-flash

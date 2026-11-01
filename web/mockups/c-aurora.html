@@ -1,0 +1,1472 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BPAgent · 指挥中心 · 样图 C 极光流体</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%236f8dff'/><stop offset='1' stop-color='%234de0d4'/></linearGradient></defs><rect width='48' height='48' rx='12' fill='url(%23g)'/><path d='M24 12 L36 24 L24 36 L12 24 Z' fill='%230a0e2a'/></svg>">
+<style>
+*{box-sizing:border-box}
+:root{
+  --ink:#e8eeff;--ink2:#a9b6dc;--mute:#7482b0;--line:rgba(176,200,255,.14);
+  --ice:#8fc4ff;--cyan:#4de0d4;--vio:#a995ff;--warm:#ffae5c;--red:#ff7a85;--green:#5be3a7;
+  --mono:"Cascadia Mono","JetBrains Mono",Consolas,"Microsoft YaHei UI",monospace;
+  --sans:"Microsoft YaHei UI","PingFang SC","Noto Sans SC","Segoe UI",system-ui,sans-serif;
+  --sw:clamp(176px,13.6vw,236px);
+}
+html{font-size:clamp(11px,min(.78vw,1.28vh),13.5px)}
+html,body{margin:0;height:100%;overflow:hidden;background:#04051a}
+body{color:var(--ink);font:1rem/1.45 var(--sans);-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+canvas{display:block}
+b{font-weight:600}
+.mono,.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ───── 底层：极光 + 颗粒 ───── */
+#aur{position:fixed;inset:0;width:100%;height:100%;z-index:0}
+#grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.055;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='180' height='180' filter='url(%23n)'/></svg>")}
+#flow{position:fixed;inset:0;width:100%;height:100%;z-index:6;pointer-events:none}
+
+/* ───── 总体网格 ───── */
+#app{position:relative;z-index:2;height:100vh;display:grid;grid-template-columns:var(--sw) minmax(0,1fr);gap:.7rem;padding:.75rem;overflow:hidden}
+#app.fold{--sw:3.6rem}
+#main{display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:.6rem;min-width:0;min-height:0}
+#bento{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:repeat(10,minmax(0,1fr));gap:.6rem;min-height:0;min-width:0}
+#crew{grid-column:1/span 3;grid-row:1/span 7}
+#lat{grid-column:4/span 6;grid-row:1/span 7}
+#queue{grid-column:10/span 3;grid-row:1/span 3}
+#tools{grid-column:10/span 3;grid-row:4/span 2}
+#review{grid-column:10/span 3;grid-row:6/span 2}
+#curve{grid-column:1/span 3;grid-row:8/span 3}
+#trace{grid-column:4/span 4;grid-row:8/span 3}
+#log{grid-column:8/span 3;grid-row:8/span 3}
+#ledger{grid-column:11/span 2;grid-row:8/span 3}
+
+/* ───── 磨砂玻璃 ───── */
+.glass{position:relative;border-radius:1.05rem;border:1px solid var(--line);
+  background:linear-gradient(155deg,rgba(62,76,150,.27),rgba(16,20,58,.40) 55%,rgba(10,14,44,.46));
+  box-shadow:0 14px 34px -14px rgba(0,0,12,.7),inset 0 1px 0 rgba(255,255,255,.09);
+  -webkit-backdrop-filter:blur(14px) saturate(1.4);backdrop-filter:blur(14px) saturate(1.4)}
+.glass::before,#lat::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;z-index:3;background:linear-gradient(140deg,rgba(200,222,255,.5),rgba(200,222,255,.06) 32%,rgba(169,149,255,0) 62%,rgba(77,224,212,.3));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.glass::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(90% 55% at 0 0,rgba(160,196,255,.09),transparent 60%)}
+.tile{display:flex;flex-direction:column;padding:.7rem .85rem .75rem;min-width:0;min-height:0;overflow:hidden}
+.th{display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem;flex:none;min-width:0}
+.th h2{margin:0;font-size:1rem;font-weight:600;letter-spacing:.06em;color:#e6ecff;white-space:nowrap;display:flex;align-items:center;min-width:0}
+.th h2::before{content:"";flex:none;width:.42rem;height:.42rem;border-radius:50%;margin-right:.5rem;background:var(--c,var(--ice));box-shadow:0 0 .7rem var(--c,var(--ice))}
+.th h2 em{font-style:normal;color:var(--mute);font-weight:400;margin-left:.3rem;overflow:hidden;text-overflow:ellipsis}
+.th .sp{flex:1;min-width:0}
+.chip{flex:none;padding:.1rem .6rem;border-radius:99px;font:600 .86rem/1.5 var(--mono);color:var(--ice);background:rgba(143,196,255,.10);border:1px solid rgba(143,196,255,.22);white-space:nowrap}
+.chip.cy{color:var(--cyan);background:rgba(77,224,212,.10);border-color:rgba(77,224,212,.28)}
+.chip.wm{color:var(--warm);background:rgba(255,174,92,.10);border-color:rgba(255,174,92,.28)}
+.chip.gr{color:var(--green);background:rgba(91,227,167,.10);border-color:rgba(91,227,167,.28)}
+.cap{margin:0 0 .35rem;font-size:.86rem;color:var(--mute);flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.capl{display:flex;justify-content:space-between;gap:.6rem;margin-top:.3rem;font-size:.84rem;color:var(--mute);flex:none;white-space:nowrap}
+.cvw{position:relative;flex:1;min-height:0}
+.cvw canvas{position:absolute;inset:0;width:100%;height:100%}
+.live{display:inline-flex;align-items:center;gap:.4rem;font-size:.86rem;color:var(--green);font-weight:600}
+.live::before{content:"";width:.45rem;height:.45rem;border-radius:50%;background:var(--green);box-shadow:0 0 .6rem var(--green);animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.25}}
+@keyframes pulse{50%{box-shadow:0 0 1.5rem rgba(100,220,255,.95)}}
+
+/* ───── 侧栏 ───── */
+#side{display:flex;flex-direction:column;padding:.8rem .65rem;min-height:0;min-width:0;overflow:hidden}
+.sbrand{display:flex;gap:.6rem;align-items:center;padding:.1rem .3rem .75rem;min-width:0}
+.mark{flex:none;width:2.3rem;height:2.3rem;border-radius:.75rem;background:linear-gradient(135deg,#6f8dff,#b08cff 55%,#4de0d4);display:grid;place-items:center;box-shadow:0 0 1.3rem rgba(120,140,255,.5)}
+.mark i{width:.8rem;height:.8rem;background:#0a0e2a;transform:rotate(45deg);border-radius:.15rem}
+.sbrand b{display:block;font-size:1.1rem;letter-spacing:.03em;white-space:nowrap}
+.sbrand small{display:block;color:var(--mute);font-size:.84rem;white-space:nowrap}
+.newchat{height:2.5rem;border:0;border-radius:.8rem;cursor:pointer;font-weight:600;letter-spacing:.1em;color:#07102a;background:linear-gradient(120deg,#8fc4ff,#a995ff 55%,#4de0d4);box-shadow:0 6px 22px -6px rgba(120,150,255,.7),inset 0 1px 0 rgba(255,255,255,.5);margin-bottom:.8rem;white-space:nowrap;overflow:hidden}
+.newchat:hover{filter:brightness(1.1)}
+.side-h{display:flex;justify-content:space-between;align-items:center;padding:0 .35rem .35rem;font-size:.86rem;letter-spacing:.14em;color:var(--mute);white-space:nowrap}
+.side-h span{font:600 .84rem var(--mono);letter-spacing:0}
+.hist{flex:1;min-height:0;overflow:hidden;-webkit-mask-image:linear-gradient(#000 80%,transparent);mask-image:linear-gradient(#000 80%,transparent)}
+.grp{padding:.6rem .4rem .25rem;font-size:.82rem;letter-spacing:.14em;color:var(--mute)}
+.hi{display:flex;gap:.55rem;align-items:flex-start;padding:.45rem .5rem;border-radius:.7rem;cursor:pointer;border:1px solid transparent;position:relative}
+.hi:hover{background:rgba(255,255,255,.04)}
+.hi.on{background:linear-gradient(120deg,rgba(143,196,255,.15),rgba(169,149,255,.08));border-color:rgba(143,196,255,.28)}
+.hi .dot{flex:none;width:.5rem;height:.5rem;border-radius:50%;margin-top:.42rem;background:var(--mute)}
+.hi.live .dot{background:var(--cyan);box-shadow:0 0 .7rem var(--cyan);animation:blink 1.2s infinite}
+.hi.done .dot{background:var(--green)} .hi.bad .dot{background:var(--red)}
+.hi .tx{min-width:0;flex:1}
+.hi .g{display:block;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+.hi .m{display:block;font-size:.82rem;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.side-foot{display:flex;gap:.4rem;padding-top:.6rem}
+.side-foot button{flex:1;height:2rem;border-radius:.65rem;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--ink2);cursor:pointer;font-size:.9rem;white-space:nowrap;overflow:hidden}
+.side-foot button:hover{background:rgba(255,255,255,.09);color:var(--ink)}
+#app.fold .sbrand div:last-child,#app.fold .side-h,#app.fold .hist,#app.fold .newchat span+*{display:none}
+#app.fold .newchat{font-size:0}#app.fold .newchat span{font-size:1.2rem}
+#app.fold .side-foot button:first-child{display:none}
+
+/* ───── 顶栏 ───── */
+#top{display:flex;align-items:center;gap:1rem;padding:.55rem .9rem;min-width:0}
+.ttl{min-width:0;flex:1}
+.ttl h1{margin:0;font-size:1.28rem;font-weight:600;letter-spacing:.04em;white-space:nowrap}
+.ttl h1 em{font-style:normal;background:linear-gradient(100deg,#8fc4ff,#a995ff 60%,#4de0d4);-webkit-background-clip:text;background-clip:text;color:transparent}
+.ttl h1 .sep{color:var(--mute);margin:0 .5rem;font-weight:400}
+.ttl h1 #ttlState{font-size:.95rem;color:var(--cyan);font-weight:600}
+.ttl p{margin:.05rem 0 0;font-size:.95rem;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ttl p b{color:var(--mute);font-weight:400;margin-right:.4rem}
+.hstats{display:flex;align-items:center;gap:1.2rem;flex:none}
+.st small{display:block;font-size:.82rem;color:var(--mute);letter-spacing:.08em;white-space:nowrap}
+.st b{display:block;font:600 1.34rem/1.15 var(--mono);color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.st b.cy{color:var(--cyan);text-shadow:0 0 1rem rgba(77,224,212,.45)}
+.st.sp2{display:flex;align-items:flex-end;gap:.6rem}
+#spark{width:5.2rem;height:1.9rem}
+.st.clock{text-align:right}
+
+/* ───── 晶格 ───── */
+#lat{position:relative;border-radius:1.2rem;overflow:hidden;border:1px solid rgba(176,200,255,.17);
+  background:radial-gradient(68% 70% at 50% 54%,rgba(8,12,42,.58),rgba(6,9,30,.2) 72%,rgba(6,9,30,.34));
+  box-shadow:0 18px 50px -18px rgba(0,0,15,.8),inset 0 0 90px rgba(80,110,230,.08),inset 0 1px 0 rgba(255,255,255,.1)}
+#lat canvas{position:absolute;inset:0;width:100%;height:100%}
+.lat-top{position:absolute;left:0;right:0;top:0;padding:.7rem .95rem 0;display:flex;flex-direction:column;gap:.55rem;pointer-events:none}
+.lat-top .th{margin:0}
+.lat-foot{position:absolute;left:0;right:0;bottom:0;padding:0 .95rem .7rem;display:flex;justify-content:space-between;align-items:flex-end;gap:1rem;font-size:.88rem;color:var(--ink2);pointer-events:none}
+.lat-foot .l{min-width:0}
+.lat-foot .l b{display:block;color:#fff;font-size:1rem;letter-spacing:.05em;white-space:nowrap}
+.lat-foot .l span{display:block;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lat-foot .r{text-align:right;white-space:nowrap;color:var(--mute)}
+.lat-foot .r b{display:block;font:600 1.5rem/1.1 var(--mono);color:var(--ice);text-shadow:0 0 1.2rem rgba(143,196,255,.5)}
+#pipe{display:flex;align-items:center;padding:.1rem .1rem}
+.stg{display:flex;align-items:center;gap:.4rem;flex:none;color:var(--mute);font-weight:600;letter-spacing:.06em;white-space:nowrap}
+.stg i{width:1.45rem;height:1.45rem;border-radius:50%;display:grid;place-items:center;font:600 .8rem var(--mono);font-style:normal;border:1px solid var(--line);background:rgba(255,255,255,.04)}
+.stg.done{color:var(--ink2)}.stg.done i{background:rgba(91,227,167,.16);border-color:rgba(91,227,167,.5);color:var(--green)}
+.stg.cur{color:#fff}.stg.cur i{background:linear-gradient(135deg,#7f9dff,#4de0d4);border-color:transparent;color:#07102a;box-shadow:0 0 1rem rgba(100,210,255,.75);animation:pulse 1.6s infinite}
+.seg{flex:1;height:2px;margin:0 .5rem;background:rgba(176,200,255,.15);position:relative;border-radius:2px;overflow:hidden;min-width:.6rem}
+.seg u{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#4de0d4,#8fc4ff);box-shadow:0 0 .6rem #4de0d4}
+
+/* ───── 成员卡 ───── */
+#crew{padding:.7rem .7rem .7rem}
+.cards{flex:1;min-height:0;display:flex;flex-direction:column;gap:.5rem}
+.card{--c:#8fc4ff;--cs:rgba(143,196,255,.4);position:relative;flex:1;min-height:0;display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto minmax(0,1fr) auto;gap:.2rem .6rem;padding:.55rem .7rem .5rem;border-radius:.9rem;
+  background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.015));border:1px solid rgba(190,210,255,.10);transition:border-color .4s,box-shadow .4s}
+.card.run{border-color:var(--cs);box-shadow:inset 0 0 1.8rem -.5rem var(--cs),0 0 1.4rem -.8rem var(--cs)}
+.card .av{grid-row:1;width:2.2rem;height:2.2rem;border-radius:.7rem;display:grid;place-items:center;font:700 1.05rem var(--mono);color:#06102a;background:linear-gradient(135deg,var(--c),#ffffff88);box-shadow:0 0 1.1rem -.1rem var(--c)}
+.card .nm{grid-row:1;min-width:0}
+.card .nm .l1{display:flex;align-items:center;gap:.4rem;min-width:0}
+.card .nm b{font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .role{flex:none;font-style:normal;font-size:.78rem;padding:0 .4rem;border-radius:99px;color:var(--c);border:1px solid var(--cs);line-height:1.45}
+.card .l2{display:flex;align-items:center;gap:.4rem;min-width:0;font-size:.88rem;color:var(--ink2)}
+.card .stt{flex:none;display:inline-flex;align-items:center;gap:.3rem;font-weight:600;color:var(--mute)}
+.card .stt::before{content:"";width:.42rem;height:.42rem;border-radius:50%;background:currentColor}
+.card.run .stt{color:var(--c)}.card.run .stt::before{box-shadow:0 0 .6rem var(--c);animation:blink 1s infinite}
+.card .stt.wait{color:var(--warm)}.card .stt.done{color:var(--green)}
+.card .cur{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--mute)}
+.card .ring{grid-row:1;width:2.9rem;height:2.9rem;align-self:center;filter:drop-shadow(0 0 5px var(--cs))}
+.ring .trk{fill:none;stroke:rgba(190,210,255,.14);stroke-width:4.5}
+.ring .arc{fill:none;stroke:var(--c);stroke-width:4.5;stroke-linecap:round;stroke-dasharray:106.8;stroke-dashoffset:106.8;transition:stroke-dashoffset .5s}
+.ring text{font:600 10.5px var(--mono);fill:var(--ink)}
+.card .act{grid-row:2;grid-column:1/-1;width:100%;height:100%;min-height:0}
+.card .ft{grid-row:3;grid-column:1/-1;display:flex;justify-content:space-between;gap:.5rem;font-size:.84rem;color:var(--mute);white-space:nowrap}
+.card .ft .rt{color:var(--c);font-family:var(--mono);font-weight:600}
+.card .port{position:absolute;right:-.28rem;top:50%;width:.55rem;height:.55rem;margin-top:-.28rem;border-radius:50%;background:var(--c);box-shadow:0 0 .9rem var(--c);opacity:.5}
+.card.run .port{opacity:1}
+
+/* ───── 队列 ───── */
+.qwrap{flex:1;min-height:0;overflow:hidden}
+table{width:100%;height:100%;border-collapse:collapse;table-layout:fixed}
+thead tr{height:1.5rem}
+th{padding:.1rem .3rem .3rem;text-align:left;font-weight:400;font-size:.82rem;color:var(--mute);letter-spacing:.1em;white-space:nowrap}
+td{padding:.22rem .3rem;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-top:1px solid rgba(176,200,255,.07)}
+tr.row{background:linear-gradient(90deg,var(--pc,transparent) var(--p,0%),transparent var(--p,0%))}
+td.id{font-family:var(--mono);color:var(--ice);font-weight:600}
+td.dep{font-family:var(--mono);color:var(--mute);font-size:.82rem}
+td.who i{display:inline-block;width:.42rem;height:.42rem;border-radius:50%;margin-right:.35rem;background:var(--c)}
+.sc{display:inline-block;padding:0 .5rem;border-radius:99px;font-size:.82rem;font-weight:600;line-height:1.5;color:var(--mute);background:rgba(255,255,255,.05)}
+.sc.run{color:var(--cyan);background:rgba(77,224,212,.12)}.sc.fix{color:var(--warm);background:rgba(255,174,92,.14)}
+.sc.pass{color:var(--green);background:rgba(91,227,167,.13)}.sc.rev{color:var(--ice);background:rgba(143,196,255,.14)}
+.sc.wait2{color:var(--vio);background:rgba(169,149,255,.14)}.sc.wait{color:var(--warm);background:rgba(255,174,92,.08)}
+tr.flash{animation:rowf .9s}
+@keyframes rowf{0%{background:rgba(143,196,255,.3)}100%{background:transparent}}
+
+/* ───── 日志 ───── */
+#logbox{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;-webkit-mask-image:linear-gradient(transparent,#000 40%);mask-image:linear-gradient(transparent,#000 40%)}
+.ln{display:flex;gap:.5rem;font-size:.88rem;line-height:1.6;white-space:nowrap;animation:lnIn .5s;flex:none}
+.ln time{flex:none;color:var(--mute);font-family:var(--mono);font-size:.82rem}
+.ln b{flex:none;font-size:.82rem;min-width:1.7rem}
+.ln span{min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--ink2)}
+@keyframes lnIn{from{opacity:0;transform:translateY(.5rem);background:rgba(143,196,255,.2)}to{opacity:1;transform:none;background:transparent}}
+
+/* ───── 轨迹 / 账本 ───── */
+.tleg{display:flex;gap:.9rem;font-size:.84rem;color:var(--mute);margin:-.1rem 0 .3rem;flex:none;white-space:nowrap}
+.tleg i{display:inline-block;width:.55rem;height:.55rem;border-radius:.15rem;margin-right:.3rem;vertical-align:-.02rem}
+.ledtop{display:flex;align-items:baseline;gap:.5rem;flex:none;margin-bottom:.35rem;white-space:nowrap}
+.ledtop b{font:600 2.1rem/1 var(--mono);background:linear-gradient(120deg,#fff,#8fc4ff);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 .7rem rgba(143,196,255,.45))}
+.ledtop span{font-size:.86rem;color:var(--mute)}
+.lb{display:grid;grid-template-columns:4.7rem minmax(0,1fr) 1.7rem;align-items:center;gap:.4rem;font-size:.86rem;color:var(--ink2);margin:.14rem 0}
+.lb span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb u{display:block;height:.42rem;border-radius:99px;background:rgba(190,210,255,.10);position:relative;overflow:hidden}
+.lb u i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:var(--c);box-shadow:0 0 .7rem var(--c);transition:width .6s}
+.lb em{font:600 .84rem var(--mono);font-style:normal;text-align:right;color:var(--ink)}
+.subh{margin:.5rem 0 .12rem;padding-top:.45rem;border-top:1px solid rgba(176,200,255,.1);font-size:.82rem;letter-spacing:.1em;color:var(--mute);white-space:nowrap}
+
+/* ───── 指令台 ───── */
+#botrow{display:flex;gap:.6rem;min-width:0}
+#cmd{flex:1;min-width:0;display:flex;align-items:center;gap:.6rem;padding:.4rem .5rem .4rem .9rem}
+#cmd label{flex:none;font-weight:600;letter-spacing:.1em;color:var(--ice);white-space:nowrap}
+#cmd select{flex:none;height:2rem;border-radius:.6rem;border:1px solid var(--line);background:rgba(255,255,255,.05);padding:0 .6rem;cursor:pointer;max-width:11rem}
+#cmd select option{background:#12183a;color:var(--ink)}
+#cmd input{flex:1;min-width:0;height:2rem;border:0;outline:0;background:transparent;font-size:1rem}
+#cmd input::placeholder{color:var(--mute)}
+#cmd button{flex:none;height:2.1rem;padding:0 1rem;border-radius:.65rem;cursor:pointer;border:1px solid var(--line);background:rgba(255,255,255,.05);white-space:nowrap}
+#cmd button.go{border:0;font-weight:600;letter-spacing:.06em;color:#07102a;background:linear-gradient(120deg,#8fc4ff,#a995ff 55%,#4de0d4);box-shadow:0 4px 18px -5px rgba(120,150,255,.8)}
+#cmd button:hover{filter:brightness(1.15)}
+#tag{flex:none;width:9.4rem;display:grid;place-items:center;border-radius:99px;font-size:.9rem;font-weight:600;letter-spacing:.08em;color:var(--ink2);background:rgba(255,255,255,.05);border:1px solid var(--line);white-space:nowrap}
+#tag::before{content:"";width:.45rem;height:.45rem;border-radius:50%;margin-right:.5rem;background:linear-gradient(135deg,#8fc4ff,#a995ff);box-shadow:0 0 .7rem #a995ff;display:inline-block}
+#tag{display:flex;align-items:center;justify-content:center}
+
+/* 矮屏：藏掉次要说明，给内容让位 */
+@media (max-height:820px){
+  .cap{display:none}
+  .th{margin-bottom:.3rem}
+  .tile{padding:.55rem .75rem .6rem}
+  .subh{margin-top:.3rem;padding-top:.3rem}
+}
+@media (max-width:1800px){
+  td.dep,th.dep,col.dep{display:none}
+}
+@media (max-width:1500px){
+  .hstats{gap:.9rem}
+}
+</style>
+</head>
+<body>
+<canvas id="aur"></canvas>
+<div id="grain"></div>
+
+<div id="app">
+  <aside id="side" class="glass">
+    <div class="sbrand"><div class="mark"><i></i></div><div><b>BPAgent</b><small>AI 编排台</small></div></div>
+    <button class="newchat" id="btnNew"><span>＋</span> 新对话</button>
+    <div class="side-h">编排记录<span id="histCnt">0</span></div>
+    <div class="hist" id="hist"></div>
+    <div class="side-foot"><button id="btnTheme">配色</button><button id="btnFold">⟨ 收起</button></div>
+  </aside>
+
+  <div id="main">
+    <header id="top" class="glass">
+      <div class="ttl">
+        <h1>BPAgent <em>指挥中心</em><span class="sep">·</span><span id="ttlState">运行中</span></h1>
+        <p id="goal"><b>目标</b>—</p>
+      </div>
+      <div class="hstats">
+        <div class="st"><small>Tokens</small><b id="hTok">0</b></div>
+        <div class="st"><small>任务</small><b id="hTasks">0/5</b></div>
+        <div class="st sp2"><div><small>输出 / 秒</small><b class="cy" id="hRate">0</b></div><canvas id="spark"></canvas></div>
+        <div class="st clock"><small id="hRun">已运行 00:00</small><b id="clock">00:00:00</b></div>
+      </div>
+    </header>
+
+    <div id="bento">
+      <section id="crew" class="glass tile">
+        <div class="th"><h2>作战编组<em>· 组长与队员同步推进</em></h2><span class="sp"></span><span class="chip" id="crewChip">组长 · —</span></div>
+        <div class="cards" id="cards"></div>
+      </section>
+
+      <section id="lat">
+        <canvas id="gl"></canvas>
+        <canvas id="core"></canvas>
+        <div class="lat-top dimzone">
+          <div class="th"><h2>任务晶格<em>· 负载下的形态 · 实时</em></h2><span class="sp"></span><span class="chip" id="formChip">形态 · —</span></div>
+          <nav id="pipe"></nav>
+        </div>
+        <div class="lat-foot dimzone">
+          <div class="l"><b id="latStage">—</b><span id="latDesc">—</span></div>
+          <div class="r"><b id="latOut">0</b>Tokens 已越过边界</div>
+        </div>
+      </section>
+
+      <section id="queue" class="glass tile">
+        <div class="th"><h2>调度队列</h2><span class="sp"></span><span class="chip" id="qCnt">0/5</span></div>
+        <div class="qwrap"><table><colgroup><col style="width:1.9rem"><col><col style="width:6.1rem"><col class="dep" style="width:4rem"><col style="width:4.4rem"></colgroup>
+          <thead><tr><th>#</th><th>任务</th><th>执行者</th><th class="dep">依赖</th><th>状态</th></tr></thead><tbody id="qb"></tbody></table></div>
+      </section>
+
+      <section id="tools" class="glass tile">
+        <div class="th" style="--c:#4de0d4"><h2>工具调用</h2><span class="sp"></span><span class="chip cy" id="toolChip">成功 —</span></div>
+        <p class="cap">每格一次调用 · 色块代表成员 · 红框为失败</p>
+        <div class="cvw"><canvas id="cTools" class="cv"></canvas></div>
+        <div class="capl"><span id="toolFoot1">0 次调用</span><span id="toolFoot2">失败 0</span></div>
+      </section>
+
+      <section id="review" class="glass tile">
+        <div class="th" style="--c:#5be3a7"><h2>审查通过</h2><span class="sp"></span><span class="chip gr" id="revChip">一次通过 —</span></div>
+        <div class="cvw"><canvas id="cReview" class="cv"></canvas></div>
+      </section>
+
+      <section id="curve" class="glass tile">
+        <div class="th" style="--c:#ffae5c"><h2>Token 曲线</h2><span class="sp"></span><span class="chip wm" id="curveChip">合计 0</span></div>
+        <p class="cap">累计消耗 · 细线为各成员 · 虚线为预算</p>
+        <div class="cvw"><canvas id="cCurve" class="cv"></canvas></div>
+        <div class="capl"><span>开始</span><span id="curveFoot">现在</span></div>
+      </section>
+
+      <section id="trace" class="glass tile">
+        <div class="th" style="--c:#a995ff"><h2>执行轨迹<em>· 每行一个任务 · <span id="traceN">0</span> 次交互</em></h2><span class="sp"></span><span class="chip" id="traceChip">扫描中</span></div>
+        <div class="tleg"><span><i style="background:#4de0d4"></i>工具</span><span><i style="background:#8fc4ff"></i>输出</span><span><i style="background:#ff7a85"></i>出错</span><span><i style="background:#a995ff"></i>派发</span></div>
+        <div class="cvw"><canvas id="cTrace" class="cv"></canvas></div>
+      </section>
+
+      <section id="log" class="glass tile">
+        <div class="th" style="--c:#8fc4ff"><h2>调度日志</h2><span class="sp"></span><span class="live">实时</span></div>
+        <div id="logbox"></div>
+      </section>
+
+      <section id="ledger" class="glass tile">
+        <div class="th" style="--c:#5be3a7"><h2>调度账本</h2><span class="sp"></span></div>
+        <div class="ledtop"><b id="ledNum">0</b><span>已交付任务</span></div>
+        <div id="ledBars"></div>
+        <div class="subh">CLAUDE 订阅额度</div>
+        <div id="ledUse"></div>
+      </section>
+    </div>
+
+    <div id="botrow">
+      <form id="cmd" class="glass" autocomplete="off">
+        <label>指令台 ▸</label>
+        <select id="cmdTo"><option>组长 Codex</option><option>DeepSeek Harness</option><option>Claude Code</option><option>Gemini CLI</option></select>
+        <input id="cmdIn" placeholder="向组长下达指令，例如：先停下 t3，改用 Claude Code 重做……">
+        <button type="button">设置…</button>
+        <button type="submit" class="go">下达 ⏎</button>
+      </form>
+      <div id="tag">样图 C · 极光流体</div>
+    </div>
+  </div>
+</div>
+<canvas id="flow"></canvas>
+
+<script>
+'use strict';
+(() => {
+// ═════════ 工具 ═════════
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const rand = (a = 1, b) => (b === undefined ? Math.random() * a : a + Math.random() * (b - a));
+const pick = (arr) => arr[Math.random() * arr.length | 0];
+const fmt = (n) => Math.round(n).toLocaleString('en-US');
+const pad2 = (n) => String(n).padStart(2, '0');
+const hex2rgb = (h) => [parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255];
+const rgba = (h, a) => `rgba(${parseInt(h.slice(1, 3), 16)},${parseInt(h.slice(3, 5), 16)},${parseInt(h.slice(5, 7), 16)},${a})`;
+const setText = (el, s) => { s = String(s); if (el._t !== s) { el._t = s; el.textContent = s; } };
+const nowS = () => performance.now() / 1000;
+const Q = new URLSearchParams(location.search);
+const AT = Q.has('at') ? +Q.get('at') : 14;   // 打开时已经运行了多少秒（预热仿真，让首屏就是进行中的状态）
+const DPR = Math.min(2, window.devicePixelRatio || 1);
+
+const C = { ice: '#8fc4ff', cyan: '#4de0d4', vio: '#a995ff', warm: '#ffae5c', red: '#ff7a85', green: '#5be3a7' };
+const AGENTS = [
+  { id: 'cx', name: 'Codex', short: 'Codex', role: '组长', col: C.ice, glyph: 'C', base: 1040 },
+  { id: 'ds', name: 'DeepSeek Harness', short: 'DeepSeek', role: '队员', col: C.cyan, glyph: 'D', base: 1800 },
+  { id: 'cc', name: 'Claude Code', short: 'Claude', role: '队员', col: C.warm, glyph: 'A', base: 2600 },
+  { id: 'gm', name: 'Gemini CLI', short: 'Gemini', role: '队员', col: C.vio, glyph: 'G', base: 1640 },
+];
+const AG = Object.fromEntries(AGENTS.map(a => [a.id, a]));
+const A = Object.fromEntries(AGENTS.map(a => [a.id, { in: 0, out: 0, rate: 0, act: new Array(30).fill(0), toolAcc: 0, setAcc: 0, msgAcc: 0 }]));
+
+const STAGES = ['规划', '派发', '执行', '审查', '终审', '汇总'];
+const STAGE_DESC = [
+  '组长拆解目标：丝带绕成柱，等待派发',
+  '任务逐条下发：丝带向外舒展，队员领取',
+  '队员并行执行：丝带在两极汇合，晶格闭合',
+  '组长逐条验收：晶格压扁收拢，核对成果',
+  '终审整体核对：一致性与风险检查',
+  '汇总产出：晶格展开成环，成果流出',
+];
+const FORM_OF = [0, 1, 1, 2, 2, 3];
+const FORM_NAME = ['绕柱', '球壳', '扁环', '开环'];
+const RUN_T = 62, HOLD = 6, COLS = 72;
+const KIND = ['tool', 'msg', 'err', 'go'];
+const KCOL = ['#4de0d4', '#8fc4ff', '#ff7a85', '#a995ff'];
+
+const SCEN = [
+  { goal: '为支付网关补全集成测试，并修复重试逻辑里的竞态回归', tasks: [
+    ['梳理现有测试与覆盖缺口', 'ds', [], 9], ['补写网关集成测试', 'cc', [], 13], ['修复重试逻辑中的竞态', 'cc', [0], 10],
+    ['调研可观测性方案并对比', 'gm', [], 12], ['汇总变更，生成发布说明', 'ds', [1, 2, 3], 6]] },
+  { goal: '把 monorepo 的 CI 构建时间压到三分钟以内', tasks: [
+    ['分析构建流水线耗时分布', 'gm', [], 9], ['拆分并缓存依赖安装阶段', 'cc', [0], 12], ['并行化测试分片', 'ds', [0], 11],
+    ['评估远程缓存方案', 'gm', [], 10], ['整理改动并更新文档', 'ds', [1, 2, 3], 6]] },
+  { goal: '把日志管道迁移到 OpenTelemetry 并保持字段兼容', tasks: [
+    ['盘点现有日志字段与消费方', 'ds', [], 9], ['编写字段映射与适配层', 'cc', [0], 13], ['接入采集器并做灰度', 'cc', [1], 9],
+    ['调研采样与成本策略', 'gm', [], 12], ['输出迁移手册与回滚预案', 'ds', [1, 2, 3], 6]] },
+];
+const TOOLS = {
+  cx: ['Read · README.md', 'Grep · "TODO|FIXME"', 'Read · docs/架构.md', 'Glob · **/*.test.*'],
+  ds: ['Read · gateway/client.py', 'Grep · "retry_backoff"', 'Bash · pytest tests/ -q', 'Edit · utils/http.py +12 −3', 'Bash · git diff --stat'],
+  cc: ['Edit · gateway/retry.py +18 −4', 'Bash · pytest tests/payment -q', 'Read · gateway/session.py', 'Edit · tests/test_retry.py +46', 'Bash · ruff check .', 'Grep · "asyncio.sleep"'],
+  gm: ['搜索 · otel collector 配置', 'Read · docs/observability.md', '搜索 · tail sampling 成本', 'Fetch · 官方基准报告', 'Grep · "trace_id"'],
+};
+const REWORK = ['边界用例缺失', '并发场景未覆盖', '回归测试不稳定', '日志字段命名不一致'];
+const LOGTAG = { sys: ['系统', C.ice], sched: ['调度', C.vio], tool: ['工具', C.cyan], rev: ['审查', C.green], tok: ['结算', C.warm], err: ['异常', C.red] };
+
+// ═════════ 全局状态 ═════════
+let S = null, LIVE = false, warmLeft = AT;
+const P = { delivered: 52, by: { ds: 19, cc: 24, gm: 9 }, first: 41, passed: 52, use5: .58, useW: .31 };
+const HIST = [
+  { grp: 0, st: 'done', g: '为订单服务接入分布式链路追踪', m: '已完成 · 11:42' },
+  { grp: 0, st: 'done', g: '补齐用户中心接口文档与示例', m: '已完成 · 10:15' },
+  { grp: 0, st: 'bad', g: '排查订单导出偶发 500 错误', m: '失败 · 09:03' },
+  { grp: 1, st: 'done', g: '重构权限校验中间件', m: '已完成 · 18:20' },
+  { grp: 1, st: 'done', g: '为设计系统生成组件文档', m: '已完成 · 15:48' },
+  { grp: 1, st: 'done', g: '梳理三方 SDK 的许可证风险', m: '已完成 · 11:06' },
+  { grp: 2, st: 'done', g: '数据库慢查询优化', m: '已完成 · 周二' },
+  { grp: 2, st: 'done', g: '前端首屏体积瘦身', m: '已完成 · 周一' },
+  { grp: 2, st: 'done', g: '压测脚本迁移到 k6', m: '已完成 · 周日' },
+];
+const clockMs = () => Date.now() - warmLeft * 1000;
+const hhmm = () => { const d = new Date(clockMs()); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+
+// ═════════ DOM 引用 ═════════
+const E = {};
+['hTok', 'hTasks', 'hRate', 'hRun', 'clock', 'goal', 'ttlState', 'crewChip', 'formChip', 'latStage', 'latDesc', 'latOut', 'qCnt', 'qb', 'toolChip', 'toolFoot1', 'toolFoot2',
+  'revChip', 'curveChip', 'curveFoot', 'traceN', 'traceChip', 'logbox', 'ledNum', 'ledBars', 'ledUse', 'hist', 'histCnt', 'pipe', 'cards'].forEach(id => { E[id] = $('#' + id); });
+const TILE = { lat: $('#lat'), queue: $('#queue'), tools: $('#tools'), review: $('#review'), curve: $('#curve'), trace: $('#trace'), log: $('#log'), ledger: $('#ledger'), crew: $('#crew'), top: $('#top'), cmd: $('#cmd') };
+const cardEl = {};
+const CV = { tools: $('#cTools'), review: $('#cReview'), curve: $('#cCurve'), trace: $('#cTrace'), spark: $('#spark') };
+
+// ═════════ 仿真 ═════════
+function byId(id) { return S.tasks.find(t => t.id === id); }
+const busy = (who) => S.tasks.some(t => t.who === who && (t.st === 'run' || t.st === 'fix'));
+const depOk = (t) => t.deps.every(d => ['wait', 'rev', 'pass'].includes(byId(d).st));
+const nPass = () => S.tasks.filter(t => t.st === 'pass').length;
+
+function log(type, text) {
+  const d = new Date(clockMs()), [tag, col] = LOGTAG[type];
+  const el = document.createElement('div');
+  el.className = 'ln';
+  el.innerHTML = `<time>${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}</time><b style="color:${col}">${tag}</b><span>${text}</span>`;
+  E.logbox.appendChild(el);
+  while (E.logbox.children.length > 24) E.logbox.firstChild.remove();
+}
+
+function newRun(n) {
+  const sc = SCEN[n % SCEN.length];
+  S = {
+    n, goal: sc.goal, t: 0, stage: 0, stageAt: [0], done: false, hold: 0, total: 0, rateSum: 0,
+    tasks: sc.tasks.map((x, k) => ({ id: 't' + (k + 1), title: x[0], who: x[1], deps: x[2].map(d => 't' + (d + 1)), dur: x[3] * rand(.92, 1.12), st: 'q', planned: false, disp: false, prog: 0, rounds: 0, rework: k === 1 && Math.random() < .75 })),
+    rev: null, planIdx: 0, dispIdx: 0, finalMsg: 0, curve: [], curveAcc: 0, actAcc: 0,
+    trace: Array.from({ length: 6 }, () => Array.from({ length: COLS }, () => [0, 0, 0, 0])), tools: [], nTools: 0, nFail: 0, nInter: 0, logToolN: 0,
+    first: 0, passed: 0, perAgent: { cx: 0, ds: 0, cc: 0, gm: 0 },
+  };
+  for (const a of AGENTS) Object.assign(A[a.id], { in: 0, out: 0, rate: 0, act: new Array(30).fill(0), toolAcc: rand(), setAcc: rand(), msgAcc: rand() });
+  HIST.forEach(h => { h.on = false; });
+  HIST.unshift({ grp: 0, st: 'live', g: sc.goal, m: '运行中 · 3 队员 · 5 任务', on: true });
+  if (HIST.length > 11) HIST.pop();
+  renderHist(); buildQueue(); buildPipe();
+  log('sys', `新编排启动：${sc.goal}`);
+  if (LIVE) { shock(1.2); aurKick(.8); burst(aEl(TILE.top), aLat(), 14, C.ice, { dur: 1.1 }); }
+}
+
+function goStage(n) {
+  S.stage = n; S.stageAt[n] = S.t;
+  log('sys', ['组长 Codex 开始拆解目标', '进入派发：任务逐条下发给队员', '进入执行：队员并行推进', '进入审查：组长逐条验收成果', '进入终审：整体核对一致性', '进入汇总：整理产出并归档'][n]);
+  if (LIVE) { shock(1); aurKick(.6); burst(aCard('cx'), aLat(), 12, C.ice, { dur: .9 }); }
+}
+
+function tryStart() {
+  for (const t of S.tasks) {
+    if (t.st === 'q' && t.disp && depOk(t) && !busy(t.who)) {
+      t.st = 'run'; t.prog = 0;
+      log('sched', `${t.id} 开始执行 · ${AG[t.who].name}`);
+      if (LIVE) { rowFlash(t.id); burst(aLat(), aCard(t.who), 8, AG[t.who].col, { dur: .9 }); trace(t.who, 3, t); }
+    }
+  }
+}
+
+function advance(dt) {
+  for (const t of S.tasks) {
+    if (t.st !== 'run' && t.st !== 'fix') continue;
+    t.prog += dt / t.dur;
+    if (t.prog >= 1) {
+      t.prog = 1; t.st = 'wait';
+      log('sched', `${t.id} 提交成果，等待审查`);
+      if (LIVE) { rowFlash(t.id); burst(aCard(t.who), aLat(), 12, AG[t.who].col, { dur: 1 }); shock(.5); }
+    }
+  }
+}
+
+function traceRow(who, t) { return who === 'cx' ? 0 : t ? +t.id.slice(1) : 1; }
+function trace(who, k, t) {
+  const col = clamp(Math.floor(S.t / RUN_T * COLS), 0, COLS - 1), row = traceRow(who, t || S.tasks.find(x => x.who === who && (x.st === 'run' || x.st === 'fix')) || S.tasks.find(x => x.who === who));
+  S.trace[row][col][k]++; S.nInter++;
+}
+const runningTask = (who) => S.tasks.find(x => x.who === who && (x.st === 'run' || x.st === 'fix'));
+
+function toolCall(who) {
+  const tt = runningTask(who), fail = Math.random() < .06, text = pick(TOOLS[who]);
+  const cell = { a: who, st: LIVE ? 'run' : (fail ? 'fail' : 'ok'), shade: rand(.35, 1), vis: LIVE ? nowS() + .95 : 0, end: nowS() + rand(1.3, 2.4), fail };
+  S.tools.push(cell); S.nTools++; if (fail) S.nFail++;
+  if (S.tools.length > 400) S.tools.shift();
+  trace(who, fail ? 2 : 0, tt);
+  if (fail || ++S.logToolN % 3 === 0) log(fail ? 'err' : 'tool', fail ? `${AG[who].short} 调用失败 · ${text.split(' · ')[0]} 退出码 1，自动重试` : `${AG[who].short} · ${text}`);
+  if (LIVE) {
+    const idx = Math.min(S.tools.length, TG.cap || 99) - 1;
+    burst(aCard(who), aToolCell(idx), 3, AG[who].col, { dur: .9, size: 2.1, gap: .05 });
+    later(.95, () => hit(TILE.tools, AG[who].col, .35));
+  }
+}
+
+function settle(who) {
+  const amt = A[who].rate * rand(.9, 1.2);
+  if (amt < 80) return;
+  if (S.tools.length % 2 === 0 || who === 'cx') log('tok', `${AG[who].short} +${fmt(amt)} Tokens`);
+  if (LIVE) {
+    burst(aCard(who), aCurveHead(), 3, AG[who].col, { dur: 1.1, size: 2.1 });
+    burst(aCard(who), aEl(E.hTok), 2, AG[who].col, { dur: 1.2, size: 1.9 });
+    later(1.1, () => { curvePulse = nowS(); });
+  }
+}
+
+function dispatch(t) {
+  t.disp = true;
+  log('sched', `派发 ${t.id} → ${AG[t.who].name}`);
+  trace('cx', 3, t);
+  if (LIVE) {
+    rowFlash(t.id);
+    burst(aCard('cx'), aLat(), 9, C.ice, { dur: .8 });
+    later(.5, () => { burst(aLat(), aCard(t.who), 9, AG[t.who].col, { dur: 1 }); burst(aLat(), aEl(qRow(t.id)), 3, AG[t.who].col, { dur: .9, size: 1.8 }); hit(cardEl[t.who], AG[t.who].col, .45); });
+    shock(.55); aurKick(.35);
+  }
+}
+
+function onPass(t) {
+  S.passed++; if (!t.rounds) S.first++;
+  P.delivered++; P.passed++; if (!t.rounds) P.first++; P.by[t.who]++;
+  log('rev', `${t.id} 审查通过${t.rounds ? `（返工 ${t.rounds} 次）` : '，一次通过'}`);
+  if (LIVE) {
+    rowFlash(t.id); shock(.7);
+    burst(aLat(), aEl(TILE.review), 10, C.green, { dur: .9, size: 2.4 });
+    later(.8, () => { hit(TILE.review, C.green, .5); burst(aEl(TILE.review), aEl(TILE.ledger), 8, C.green, { dur: 1 }); later(.95, () => hit(TILE.ledger, C.green, .5)); });
+  }
+}
+
+function leaderRate() {
+  const s = S; if (s.done) return 0;
+  switch (s.stage) { case 0: return 1.1; case 1: return .8; case 2: return .16; case 3: return s.rev ? 1 : .35; case 4: return 1.2; default: return 1; }
+}
+
+function step(dt) {
+  const s = S;
+  if (s.done) {
+    s.hold += dt; accrue(dt);
+    if (s.hold >= HOLD) newRun(s.n + 1);
+    return;
+  }
+  s.t += dt;
+  const sT = s.t - s.stageAt[s.stage];
+  switch (s.stage) {
+    case 0: {
+      const k = Math.min(5, Math.floor(sT / .9));
+      while (s.planIdx < k) {
+        const t = s.tasks[s.planIdx++]; t.planned = true;
+        log('sched', `拆出 ${t.id} · ${t.title}`); trace('cx', 1, t);
+        if (LIVE) { burst(aLat(), aEl(qRow(t.id)), 4, C.ice, { dur: .8, size: 1.8 }); rowFlash(t.id); }
+      }
+      if (sT >= 5) goStage(1);
+      break;
+    }
+    case 1: {
+      const k = Math.min(5, Math.floor(sT / .7));
+      while (s.dispIdx < k) dispatch(s.tasks[s.dispIdx++]);
+      if (sT >= 4) goStage(2);
+      break;
+    }
+    case 2:
+      tryStart(); advance(dt);
+      if (s.tasks.every(t => t.st === 'wait' || t.st === 'pass')) goStage(3);
+      break;
+    case 3: {
+      tryStart(); advance(dt);
+      if (!s.rev) {
+        const t = s.tasks.find(x => x.st === 'wait');
+        if (t) { t.st = 'rev'; s.rev = { t, left: 1.4 }; log('rev', `组长开始审查 ${t.id} · ${t.title}`); if (LIVE) { rowFlash(t.id); burst(aEl(qRow(t.id)), aCard('cx'), 4, C.ice, { dur: .8, size: 1.8 }); } }
+      } else {
+        s.rev.left -= dt;
+        if (s.rev.left <= 0) {
+          const t = s.rev.t; s.rev = null;
+          if (t.rework && t.rounds === 0) {
+            t.rounds = 1; t.st = 'fix'; t.prog = 0; t.dur = 3.6;
+            log('rev', `${t.id} 返工 · ${pick(REWORK)}`); trace('cx', 2, t);
+            if (LIVE) { rowFlash(t.id); shock(.6); burst(aCard('cx'), aCard(t.who), 8, C.warm, { dur: .9 }); }
+          } else { t.st = 'pass'; onPass(t); }
+        }
+      }
+      if (s.tasks.every(t => t.st === 'pass')) goStage(4);
+      break;
+    }
+    case 4:
+      if (s.finalMsg === 0 && sT > .4) { s.finalMsg = 1; log('rev', '终审：核对测试覆盖与接口兼容'); }
+      if (s.finalMsg === 1 && sT > 2.6) { s.finalMsg = 2; log('rev', '终审：未发现阻塞项，风险可接受'); if (LIVE) burst(aCard('cx'), aEl(TILE.review), 8, C.green, { dur: 1 }); }
+      if (sT >= 5) goStage(5);
+      break;
+    case 5:
+      if (sT >= 5) {
+        s.done = true; s.hold = 0;
+        log('sys', `编排完成 · 共消耗 ${fmt(s.total)} Tokens`);
+        const h = HIST.find(x => x.st === 'live'); if (h) { h.st = 'done'; h.m = `已完成 · ${hhmm()}`; }
+        renderHist();
+        if (LIVE) { shock(1.4); aurKick(1); burst(aLat(), aEl(TILE.ledger), 28, C.ice, { dur: 1.3, size: 2.7 }); burst(aLat(), aEl(TILE.top), 14, C.cyan, { dur: 1.2 }); later(1.3, () => hit(TILE.ledger, C.ice, .6)); }
+      }
+      break;
+  }
+  accrue(dt);
+}
+
+function accrue(dt) {
+  const s = S;
+  let tot = 0;
+  for (const a of AGENTS) {
+    const st = A[a.id];
+    const target = s.done ? 0 : a.id === 'cx' ? a.base * leaderRate() : busy(a.id) ? a.base * (.8 + .22 * Math.sin(s.t * 1.7 + a.base) + rand(-.08, .08)) : 0;
+    st.rate += (target - st.rate) * Math.min(1, dt * 3);
+    if (st.rate < 4) st.rate = 0;
+    const tok = st.rate * dt;
+    st.in += tok * .88; st.out += tok * .12; s.total += tok; tot += st.rate;
+    s.perAgent[a.id] += tok;
+    const rt = runningTask(a.id); if (rt) rt.tok = (rt.tok || 0) + tok;
+    if (s.done) continue;
+    // 工具调用 / 输出 / 结算：按活跃度随机触发
+    const lam = a.id === 'cx' ? (s.stage === 0 ? 1 : s.rev ? 1.2 : .25) : busy(a.id) ? 1.5 : 0;
+    st.toolAcc += dt * lam; while (st.toolAcc >= 1) { st.toolAcc -= 1; toolCall(a.id); }
+    const lm = st.rate > 100 ? 2.2 : 0; st.msgAcc += dt * lm; while (st.msgAcc >= 1) { st.msgAcc -= 1; trace(a.id, 1); }
+    if (st.rate > 150) { st.setAcc += dt * .9; if (st.setAcc >= 1) { st.setAcc = 0; settle(a.id); } }
+  }
+  s.rateSum = tot;
+  s.actAcc += dt; if (s.actAcc >= .5) { s.actAcc -= .5; for (const a of AGENTS) { const arr = A[a.id].act; arr.push(A[a.id].rate / a.base); arr.shift(); } }
+  s.curveAcc += dt;
+  if (s.curveAcc >= .5 && !s.done) { s.curveAcc = 0; s.curve.push([s.t, s.total, ...AGENTS.map(a => s.perAgent[a.id])]); }
+  // 工具格状态
+  const T = nowS();
+  for (let i = s.tools.length - 1; i >= Math.max(0, s.tools.length - 60); i--) { const c = s.tools[i]; if (c.st === 'run' && T >= c.end) c.st = c.fail ? 'fail' : 'ok'; }
+}
+
+// ═════════ 面板 DOM ═════════
+function buildCards() {
+  for (const a of AGENTS) {
+    const el = document.createElement('div');
+    el.className = 'card'; el.dataset.id = a.id; el.style.setProperty('--c', a.col); el.style.setProperty('--cs', rgba(a.col, .42));
+    el.innerHTML = `<div class="av">${a.glyph}</div>
+      <div class="nm"><div class="l1"><b>${a.name}</b><em class="role">${a.role}</em></div><div class="l2"><span class="stt">待命</span><span class="cur"></span></div></div>
+      <svg class="ring" viewBox="0 0 44 44"><circle class="trk" cx="22" cy="22" r="17"/><circle class="arc" cx="22" cy="22" r="17" transform="rotate(-90 22 22)"/><text x="22" y="26" text-anchor="middle">0%</text></svg>
+      <canvas class="act"></canvas>
+      <div class="ft"><span class="io"></span><span class="rt"></span></div><i class="port"></i>`;
+    E.cards.appendChild(el); cardEl[a.id] = el;
+    el._r = { stt: $('.stt', el), cur: $('.cur', el), arc: $('.arc', el), txt: $('text', el), io: $('.io', el), rt: $('.rt', el), act: $('.act', el) };
+    el._r.act._chart = true; chartObs.observe(el._r.act);
+  }
+}
+let qRows = {};
+const qRow = (id) => qRows[id] || E.qb.firstChild;
+function buildQueue() {
+  E.qb.innerHTML = ''; qRows = {};
+  for (const t of S.tasks) {
+    const tr = document.createElement('tr'); tr.className = 'row'; tr.style.setProperty('--c', AG[t.who].col);
+    tr.innerHTML = `<td class="id">${t.id}</td><td class="ti"></td><td class="who"><i></i>${AG[t.who].short}</td><td class="dep">${t.deps.length ? '←' + t.deps.join(' ') : '—'}</td><td><span class="sc"></span></td>`;
+    tr._r = { ti: $('.ti', tr), sc: $('.sc', tr) };
+    E.qb.appendChild(tr); qRows[t.id] = tr;
+  }
+}
+function buildPipe() {
+  E.pipe.innerHTML = '';
+  STAGES.forEach((n, i) => {
+    const d = document.createElement('div'); d.className = 'stg'; d.innerHTML = `<i>${i + 1}</i>${n}`; E.pipe.appendChild(d);
+    if (i < STAGES.length - 1) { const s = document.createElement('div'); s.className = 'seg'; s.innerHTML = '<u></u>'; E.pipe.appendChild(s); }
+  });
+}
+function renderHist() {
+  const names = ['今天', '昨天', '本周更早'];
+  let html = '';
+  for (let g = 0; g < 3; g++) {
+    const items = HIST.filter(h => h.grp === g); if (!items.length) continue;
+    html += `<div class="grp">${names[g]}</div>`;
+    for (const h of items) html += `<div class="hi ${h.st}${h.on ? ' on' : ''}"><i class="dot"></i><div class="tx"><span class="g">${h.g}</span><span class="m">${h.m}</span></div></div>`;
+  }
+  E.hist.innerHTML = html; E.histCnt.textContent = HIST.length;
+}
+
+function agentState(id) {
+  const s = S;
+  if (id === 'cx') {
+    if (s.done) return ['待命', 'idle', ''];
+    switch (s.stage) {
+      case 0: return ['规划中', 'run', '拆解目标'];
+      case 1: return ['派发中', 'run', `派发 ${s.dispIdx}/5`];
+      case 2: return ['监工中', 'run', '等待成员交付'];
+      case 3: return s.rev ? ['审查中', 'run', `${s.rev.t.id} ${s.rev.t.title}`] : ['待审', 'idle', '等待交付'];
+      case 4: return ['终审中', 'run', '整体核对'];
+      default: return ['汇总中', 'run', '整理产出'];
+    }
+  }
+  const t = runningTask(id);
+  if (t) return [t.st === 'fix' ? '返工中' : '执行中', 'run', `${t.id} ${t.title}`];
+  const mine = s.tasks.filter(x => x.who === id);
+  const w = mine.find(x => x.st === 'q' && x.disp);
+  if (w && s.stage >= 2) { const un = w.deps.filter(d => !['wait', 'rev', 'pass'].includes(byId(d).st)); return ['等待依赖', 'wait', un.length ? `${w.id} ← ${un[0]}` : w.id]; }
+  if (s.stage < 2) return ['待命', 'idle', s.stage === 1 && mine.some(x => x.disp) ? '已领取任务' : ''];
+  if (mine.length && mine.every(x => x.st === 'pass')) return ['已交付', 'done', ''];
+  if (mine.some(x => x.st === 'wait' || x.st === 'rev')) return ['待审', 'wait', mine.find(x => x.st === 'wait' || x.st === 'rev').id];
+  return ['空闲', 'idle', ''];
+}
+function taskStatus(t) {
+  if (!S.tasks || !t.planned) return ['··', ''];
+  switch (t.st) {
+    case 'q': {
+      if (!t.disp) return ['排队', ''];
+      const un = t.deps.filter(d => !['wait', 'rev', 'pass'].includes(byId(d).st));
+      if (S.stage >= 2 && un.length) return ['等待 ' + un[0], 'wait'];
+      return [S.stage >= 2 ? '就绪' : '已派发', 'rev'];
+    }
+    case 'run': return ['执行中', 'run']; case 'fix': return ['返工', 'fix']; case 'wait': return ['待审', 'wait2'];
+    case 'rev': return ['审查中', 'rev']; default: return ['通过', 'pass'];
+  }
+}
+
+const disp = { total: 0, rate: 0, out: 0 };
+const rateHist = new Array(40).fill(0);
+let rateAcc = 0;
+function updateDom(dt) {
+  const s = S, T = s.stage;
+  disp.total += (s.total - disp.total) * .35; disp.rate += ((s.rateSum || 0) * .04 - disp.rate) * .25;
+  setText(E.hTok, fmt(disp.total)); setText(E.hTasks, `${nPass()}/${s.tasks.length}`); setText(E.hRate, fmt(disp.rate));
+  const d = new Date(); setText(E.clock, `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`);
+  setText(E.hRun, `已运行 ${pad2(s.t / 60 | 0)}:${pad2(s.t % 60 | 0)}`);
+  if (E.goal._g !== s.goal) { E.goal._g = s.goal; E.goal.innerHTML = `<b>目标</b>${s.goal}`; }
+  setText(E.ttlState, s.done ? '已完成' : '运行中');
+  rateAcc += dt; if (rateAcc > .25) { rateAcc = 0; rateHist.push(disp.rate); rateHist.shift(); }
+  // 流水线
+  const nodes = $$('.stg', E.pipe), segs = $$('.seg u', E.pipe);
+  nodes.forEach((n, i) => {
+    const done = s.done || i < T, cur = !s.done && i === T;
+    n.className = 'stg' + (done ? ' done' : cur ? ' cur' : ''); setText(n.firstChild, done ? '✓' : String(i + 1));
+  });
+  segs.forEach((u, i) => {
+    let p = 0; if (s.done || i < T) p = 1; else if (i === T) p = stageProg();
+    u.style.width = (p * 100).toFixed(1) + '%';
+  });
+  const fi = s.done ? 3 : FORM_OF[T];
+  setText(E.formChip, `形态 · ${FORM_NAME[fi]}`);
+  setText(E.latStage, s.done ? '编排完成' : `${STAGES[T]}阶段`);
+  setText(E.latDesc, s.done ? '产出已归档至账本，等待下一个目标' : STAGE_DESC[T]);
+  setText(E.latOut, fmt(disp.total));
+  // 成员卡
+  const tot = Math.max(1, s.total), leader = agentState('cx');
+  for (const a of AGENTS) {
+    const el = cardEl[a.id], r = el._r, st = agentState(a.id), q = A[a.id], share = (q.in + q.out) / tot;
+    el.classList.toggle('run', st[1] === 'run');
+    setText(r.stt, st[0]); r.stt.className = 'stt' + (st[1] === 'wait' ? ' wait' : st[1] === 'done' ? ' done' : '');
+    setText(r.cur, st[2]);
+    r.arc.style.strokeDashoffset = (106.8 * (1 - clamp(share, 0, 1))).toFixed(1); setText(r.txt, Math.round(share * 100) + '%');
+    setText(r.io, `输入 ${fmt(q.in)} · 输出 ${fmt(q.out)}`); setText(r.rt, q.rate > 5 ? `${fmt(q.rate)} tok/s` : '—');
+  }
+  setText(E.crewChip, `组长 · ${leader[0]}`);
+  // 队列
+  for (const t of s.tasks) {
+    const tr = qRows[t.id], r = tr._r, [txt, cls] = taskStatus(t);
+    setText(r.ti, t.planned ? t.title : '··'); setText(r.sc, txt); r.sc.className = 'sc ' + cls;
+    const p = t.st === 'run' || t.st === 'fix' ? t.prog * 100 : t.st === 'pass' ? 100 : t.st === 'wait' || t.st === 'rev' ? 100 : 0;
+    tr.style.setProperty('--p', p.toFixed(0) + '%'); tr.style.setProperty('--pc', t.st === 'pass' ? 'rgba(91,227,167,.10)' : rgba(AG[t.who].col, .16));
+  }
+  setText(E.qCnt, `${nPass()}/${s.tasks.length}`);
+  // 工具 / 审查 / 轨迹 chips
+  const ok = s.tools.filter(c => c.st === 'ok').length, bad = s.tools.filter(c => c.st === 'fail').length;
+  setText(E.toolChip, ok + bad ? `成功 ${(ok / (ok + bad) * 100).toFixed(0)}%` : '成功 —');
+  setText(E.toolFoot1, `${s.nTools} 次调用`); setText(E.toolFoot2, `失败 ${s.nFail}`);
+  setText(E.revChip, `本次 ${nPass()}/${s.tasks.length} 通过`);
+  setText(E.curveChip, `合计 ${fmt(s.total)}`);
+  setText(E.curveFoot, `现在 · ${pad2(s.t / 60 | 0)}:${pad2(s.t % 60 | 0)}`);
+  setText(E.traceN, s.nInter); setText(E.traceChip, s.done ? '已归档' : '扫描中');
+  // 账本
+  setText(E.ledNum, P.delivered);
+  const mx = Math.max(...Object.values(P.by));
+  if (!E.ledBars._built) {
+    E.ledBars._built = true;
+    E.ledBars.innerHTML = ['ds', 'cc', 'gm'].map(id => `<div class="lb" style="--c:${AG[id].col}"><span>${AG[id].short}</span><u><i data-k="${id}"></i></u><em data-v="${id}"></em></div>`).join('');
+    E.ledUse.innerHTML = [['5 小时窗口', 'u5', C.warm], ['本周额度', 'uw', C.vio]].map(([n, k, c]) => `<div class="lb" style="--c:${c}"><span>${n}</span><u><i data-k="${k}"></i></u><em data-v="${k}"></em></div>`).join('');
+  }
+  for (const id of ['ds', 'cc', 'gm']) { $(`[data-k=${id}]`, E.ledBars).style.width = (P.by[id] / mx * 100).toFixed(0) + '%'; setText($(`[data-v=${id}]`, E.ledBars), P.by[id]); }
+  const u5 = clamp(P.use5 + A.cc.in * 2e-7, 0, .99), uw = clamp(P.useW + A.cc.in * 6e-8, 0, .99);
+  $('[data-k=u5]', E.ledUse).style.width = (u5 * 100).toFixed(0) + '%'; setText($('[data-v=u5]', E.ledUse), Math.round(u5 * 100) + '%');
+  $('[data-k=uw]', E.ledUse).style.width = (uw * 100).toFixed(0) + '%'; setText($('[data-v=uw]', E.ledUse), Math.round(uw * 100) + '%');
+}
+function stageProg() {
+  const s = S, sT = s.t - s.stageAt[s.stage];
+  switch (s.stage) {
+    case 0: return clamp(sT / 5, 0, 1); case 1: return clamp(sT / 4, 0, 1);
+    case 2: return clamp(s.tasks.reduce((a, t) => a + (t.st === 'q' ? 0 : t.st === 'run' ? t.prog : 1), 0) / s.tasks.length, 0, 1);
+    case 3: return nPass() / s.tasks.length; case 4: return clamp(sT / 5, 0, 1); default: return clamp(sT / 5, 0, 1);
+  }
+}
+
+// ═════════ 图表 ═════════
+const CDPR = Math.min(2, window.devicePixelRatio || 1);
+const chartObs = new ResizeObserver(es => {
+  for (const e of es) { const c = e.target; if (!c._chart) continue; c._w = e.contentRect.width; c._h = e.contentRect.height; c.width = Math.max(1, Math.round(c._w * CDPR)); c.height = Math.max(1, Math.round(c._h * CDPR)); }
+  scheduleLayout();
+});
+function fit(c) { if (!c._w) return null; const x = c._x || (c._x = c.getContext('2d')); x.setTransform(CDPR, 0, 0, CDPR, 0, 0); x.clearRect(0, 0, c._w, c._h); return [x, c._w, c._h]; }
+function rr(x, px, py, w, h, r) { x.beginPath(); if (x.roundRect) x.roundRect(px, py, w, h, r); else x.rect(px, py, w, h); }
+const FONT = '10px "Cascadia Mono", Consolas, "Microsoft YaHei UI", monospace';
+let curvePulse = 0, curveHead = { x: 0, y: 0 }, TG = {}, TRG = {}, RVG = {}, curveSpan = 26, visCols = 40;
+
+function drawSpark() {
+  const f = fit(CV.spark); if (!f) return; const [x, w, h] = f;
+  const mx = Math.max(1, ...rateHist), bw = w / rateHist.length;
+  rateHist.forEach((v, i) => { const bh = Math.max(1.5, v / mx * (h - 2)); x.fillStyle = rgba(C.cyan, .25 + .75 * i / rateHist.length); rr(x, i * bw, h - bh, Math.max(1, bw - 1.2), bh, 1); x.fill(); });
+}
+function drawActs() {
+  for (const a of AGENTS) {
+    const c = cardEl[a.id]._r.act, f = fit(c); if (!f) continue; const [x, w, h] = f, arr = A[a.id].act, n = arr.length, bw = w / n;
+    for (let i = 0; i < n; i++) {
+      const v = clamp(arr[i], 0, 1.3) / 1.3, bh = Math.max(1.5, v * (h - 1)), last = i === n - 1;
+      x.fillStyle = rgba(a.col, last ? 1 : .22 + .6 * (i / n)); if (last) { x.shadowColor = a.col; x.shadowBlur = 8; }
+      rr(x, i * bw + .5, h - bh, Math.max(1, bw - 2), bh, 1.5); x.fill(); x.shadowBlur = 0;
+    }
+  }
+}
+function drawTools() {
+  const f = fit(CV.tools); if (!f) return; const [x, w, h] = f, T = nowS();
+  const gap = 3, sz = clamp(Math.floor(h / 5) - gap, 8, 13), cols = Math.max(1, Math.floor((w + gap) / (sz + gap))), rows = Math.max(1, Math.floor((h + gap) / (sz + gap))), cap = cols * rows;
+  const ox = (w - (cols * (sz + gap) - gap)) / 2, oy = 0;
+  TG = { ox, oy, sz, gap, cols, rows, cap };
+  const list = S.tools.slice(-cap);
+  for (let i = 0; i < cap; i++) {
+    const cx = ox + (i % cols) * (sz + gap), cy = oy + (i / cols | 0) * (sz + gap), c = list[i];
+    if (!c || c.vis > T) { x.strokeStyle = 'rgba(176,200,255,.13)'; x.lineWidth = 1; rr(x, cx + .5, cy + .5, sz - 1, sz - 1, 2.5); x.stroke(); continue; }
+    const col = AG[c.a].col, fl = clamp(1 - (T - c.vis) / .7, 0, 1);
+    if (c.st === 'fail') { x.strokeStyle = C.red; x.lineWidth = 1.5; rr(x, cx + .75, cy + .75, sz - 1.5, sz - 1.5, 2.5); x.stroke(); }
+    else if (c.st === 'ok') { x.fillStyle = rgba(col, .32 + .68 * c.shade); rr(x, cx, cy, sz, sz, 2.5); x.fill(); }
+    else { x.fillStyle = rgba(col, .5 + .5 * Math.sin(T * 9 + i)); rr(x, cx, cy, sz, sz, 2.5); x.fill(); }
+    if (fl > 0) { x.save(); x.shadowColor = '#fff'; x.shadowBlur = 10 * fl; x.fillStyle = `rgba(255,255,255,${.75 * fl})`; rr(x, cx, cy, sz, sz, 2.5); x.fill(); x.restore(); }
+  }
+}
+function drawReview() {
+  const f = fit(CV.review); if (!f) return; const [x, w, h] = f, s = S, T = nowS();
+  const R = Math.min(h * .42, w * .27), cx = R + 6, cy = h / 2, lw = Math.max(5, R * .24);
+  const pct = P.passed ? P.first / P.passed : 0, show = pct;
+  x.lineWidth = lw; x.lineCap = 'round'; x.strokeStyle = 'rgba(176,200,255,.13)'; x.beginPath(); x.arc(cx, cy, R, 0, 6.2832); x.stroke();
+  const prog = nPass() / s.tasks.length;      // 外圈细环：通过进度
+  x.lineWidth = 2; x.strokeStyle = 'rgba(143,196,255,.35)'; x.beginPath(); x.arc(cx, cy, R + lw * .9, -1.5708, -1.5708 + prog * 6.2832); x.stroke();
+  if (show > 0) { const g = x.createLinearGradient(cx - R, cy - R, cx + R, cy + R); g.addColorStop(0, C.green); g.addColorStop(1, C.cyan); x.strokeStyle = g; x.lineWidth = lw; x.shadowColor = C.green; x.shadowBlur = 12; x.beginPath(); x.arc(cx, cy, R, -1.5708, -1.5708 + show * 6.2832); x.stroke(); x.shadowBlur = 0; }
+  x.fillStyle = '#fff'; x.font = `600 ${Math.max(11, R * .5)}px "Cascadia Mono", Consolas, monospace`; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillText(Math.round(show * 100) + '%', cx, cy - R * .08);
+  x.font = `${Math.max(9, R * .24)}px "Microsoft YaHei UI", sans-serif`; x.fillStyle = '#7482b0'; x.fillText('累计一次通过', cx, cy + R * .42);
+  // 右侧：每个任务的交付 / 返工格
+  const x0 = cx + R + lw + 14, aw = w - x0, n = s.tasks.length, rowH = Math.min(18, (h - 2) / n), cell = 4, cw = clamp((aw - 26) / 3 - cell, 12, 26);
+  x.textAlign = 'left'; x.font = FONT;
+  s.tasks.forEach((t, i) => {
+    const y = (h - rowH * n) / 2 + i * rowH, ch = rowH - 4;
+    x.fillStyle = '#7482b0'; x.fillText(t.id, x0, y + ch / 2 + 1);
+    const att = t.rounds + 1;
+    for (let k = 0; k < 3; k++) {
+      const px = x0 + 22 + k * (cw + cell);
+      if (k >= att) { x.setLineDash([2, 2]); x.strokeStyle = 'rgba(176,200,255,.14)'; x.lineWidth = 1; rr(x, px + .5, y + .5, cw - 1, ch - 1, 2.5); x.stroke(); x.setLineDash([]); continue; }
+      if (k < att - 1) { x.setLineDash([3, 2]); x.strokeStyle = C.warm; x.lineWidth = 1.4; rr(x, px + .7, y + .7, cw - 1.4, ch - 1.4, 2.5); x.stroke(); x.setLineDash([]); continue; }
+      if (t.st === 'pass') { x.fillStyle = C.green; x.shadowColor = C.green; x.shadowBlur = 7; rr(x, px, y, cw, ch, 2.5); x.fill(); x.shadowBlur = 0; }
+      else if (t.st === 'rev') { x.fillStyle = rgba(C.ice, .5 + .5 * Math.sin(T * 8)); rr(x, px, y, cw, ch, 2.5); x.fill(); }
+      else if (t.st === 'wait') { x.fillStyle = rgba(C.vio, .55); rr(x, px, y, cw, ch, 2.5); x.fill(); }
+      else if (t.st === 'run' || t.st === 'fix') { x.fillStyle = rgba(C.cyan, .25 + .25 * Math.sin(T * 5 + i)); rr(x, px, y, cw, ch, 2.5); x.fill(); }
+      else { x.strokeStyle = 'rgba(176,200,255,.2)'; x.lineWidth = 1; rr(x, px + .5, y + .5, cw - 1, ch - 1, 2.5); x.stroke(); }
+    }
+  });
+}
+function drawCurve() {
+  const f = fit(CV.curve); if (!f) return; const [x, w, h] = f, s = S, T = nowS();
+  const padB = 12, padT = 6, BUDGET = 150000, ymax = Math.max(BUDGET * 1.12, s.total * 1.12);
+  curveSpan += (Math.max(26, s.t * 1.12 + 3) - curveSpan) * .08;
+  const X = (t) => clamp(t / curveSpan, 0, 1) * (w - 6) + 3, Y = (v) => padT + (1 - v / ymax) * (h - padT - padB);
+  // 阶段底色
+  for (let i = 0; i < 6; i++) {
+    if (s.stageAt[i] === undefined) break;
+    const t0 = s.stageAt[i], t1 = s.stageAt[i + 1] !== undefined ? s.stageAt[i + 1] : s.t;
+    x.fillStyle = i % 2 ? 'rgba(143,196,255,.05)' : 'rgba(169,149,255,.045)'; x.fillRect(X(t0), padT, Math.max(0, X(t1) - X(t0)), h - padT - padB);
+    x.fillStyle = '#7482b0'; x.font = '9.5px "Microsoft YaHei UI", sans-serif'; x.textAlign = 'center'; x.fillText(STAGES[i][0], (X(t0) + X(t1)) / 2, h - 1);
+  }
+  x.strokeStyle = 'rgba(176,200,255,.08)'; x.lineWidth = 1;
+  for (let g = 1; g <= 3; g++) { const y = Y(ymax * g / 4); x.beginPath(); x.moveTo(0, y); x.lineTo(w, y); x.stroke(); }
+  x.setLineDash([4, 4]); x.strokeStyle = rgba(C.warm, .6); x.beginPath(); x.moveTo(0, Y(BUDGET)); x.lineTo(w, Y(BUDGET)); x.stroke(); x.setLineDash([]);
+  x.fillStyle = rgba(C.warm, .85); x.font = '9.5px "Microsoft YaHei UI", sans-serif'; x.textAlign = 'right'; x.fillText('预算 150K', w - 3, Y(BUDGET) - 3);
+  const pts = s.curve; if (pts.length < 2) return;
+  const last = [s.t, s.total, ...AGENTS.map(a => s.perAgent[a.id])], arr = pts.concat([last]);
+  for (let k = 0; k < 4; k++) {    // 成员细线
+    x.strokeStyle = rgba(AGENTS[k].col, .55); x.lineWidth = 1; x.beginPath();
+    arr.forEach((p, i) => { const px = X(p[0]), py = Y(p[2 + k]); i ? x.lineTo(px, py) : x.moveTo(px, py); }); x.stroke();
+  }
+  const grad = x.createLinearGradient(0, 0, w, 0); grad.addColorStop(0, C.cyan); grad.addColorStop(.55, C.ice); grad.addColorStop(1, C.vio);
+  x.beginPath(); arr.forEach((p, i) => { const px = X(p[0]), py = Y(p[1]); i ? x.lineTo(px, py) : x.moveTo(px, py); });
+  const lx = X(last[0]), ly = Y(last[1]); x.lineTo(lx, Y(0)); x.lineTo(X(0), Y(0)); x.closePath();
+  const fg = x.createLinearGradient(0, padT, 0, h); fg.addColorStop(0, 'rgba(143,196,255,.30)'); fg.addColorStop(1, 'rgba(143,196,255,0)'); x.fillStyle = fg; x.fill();
+  x.strokeStyle = grad; x.lineWidth = 2.2; x.lineJoin = 'round'; x.shadowColor = C.ice; x.shadowBlur = 10; x.beginPath();
+  arr.forEach((p, i) => { const px = X(p[0]), py = Y(p[1]); i ? x.lineTo(px, py) : x.moveTo(px, py); }); x.stroke(); x.shadowBlur = 0;
+  const pz = clamp(1 - (T - curvePulse) / .8, 0, 1), rad = 3.2 + 6 * pz;
+  const rg = x.createRadialGradient(lx, ly, 0, lx, ly, rad * 2.6); rg.addColorStop(0, 'rgba(255,255,255,.9)'); rg.addColorStop(.3, 'rgba(143,196,255,.5)'); rg.addColorStop(1, 'rgba(143,196,255,0)');
+  x.fillStyle = rg; x.beginPath(); x.arc(lx, ly, rad * 2.6, 0, 6.2832); x.fill(); x.fillStyle = '#fff'; x.beginPath(); x.arc(lx, ly, 2.6, 0, 6.2832); x.fill();
+  curveHead = { x: lx, y: ly };
+}
+function drawTrace() {
+  const f = fit(CV.trace); if (!f) return; const [x, w, h] = f, s = S, T = nowS();
+  const labW = 26, gap = 1.6, rows = 6, rh = h / rows, ch = rh - gap * 2, curCol = clamp(Math.floor(s.t / RUN_T * COLS), 0, COLS - 1);
+  visCols += (clamp(curCol + 12, 40, COLS) - visCols) * .08;
+  const cw = (w - labW) / visCols;
+  TRG = { labW, cw, rh, ch, gap };
+  x.font = FONT; x.textAlign = 'left'; x.textBaseline = 'middle';
+  for (let r = 0; r < rows; r++) {
+    const y = r * rh + gap;
+    x.fillStyle = r === 0 ? C.ice : '#7482b0'; x.fillText(r === 0 ? '组长' : 't' + r, 0, y + ch / 2);
+    for (let c = 0; c < COLS; c++) {
+      if ((c + 1) * cw > w - labW + .5) break;
+      const cell = s.trace[r][c], sum = cell[0] + cell[1] + cell[2] + cell[3], px = labW + c * cw;
+      if (!sum) { if (c > curCol) { x.fillStyle = 'rgba(176,200,255,.05)'; rr(x, px + .4, y, cw - .8, ch, 1.5); x.fill(); } else { x.fillStyle = 'rgba(176,200,255,.09)'; rr(x, px + .4, y, cw - .8, ch, 1.5); x.fill(); } continue; }
+      let k = 0; for (let i = 1; i < 4; i++) if (cell[i] * (i === 2 ? 2 : 1) > cell[k] * (k === 2 ? 2 : 1)) k = i;
+      const a = .28 + .72 * Math.min(1, sum / 3);
+      x.fillStyle = rgba(KCOL[k], a); if (a > .8 && c >= curCol - 2) { x.shadowColor = KCOL[k]; x.shadowBlur = 6; }
+      rr(x, px + .4, y, cw - .8, ch, 1.5); x.fill(); x.shadowBlur = 0;
+    }
+  }
+  if (!s.done) { // 扫描线
+    const px = labW + curCol * cw + cw / 2, g = x.createLinearGradient(px - 14, 0, px, 0); g.addColorStop(0, 'rgba(143,196,255,0)'); g.addColorStop(1, 'rgba(143,196,255,.28)');
+    x.fillStyle = g; x.fillRect(px - 14, 0, 14, h); x.fillStyle = `rgba(255,255,255,${.7 + .3 * Math.sin(T * 8)})`; x.fillRect(px - .5, 0, 1.4, h);
+  }
+}
+
+// ═════════ 粒子事件（DOM 锚点） ═════════
+const aEl = (e) => { const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2, r.width, r.height]; };
+const aCard = (id) => { const r = cardEl[id].getBoundingClientRect(); return [r.right - 8, r.top + r.height / 2, 10, r.height * .5]; };
+const aLat = () => [LAT.x, LAT.y, LAT.r * .8, LAT.r * .8];
+const aCurveHead = () => { const r = CV.curve.getBoundingClientRect(); return [r.left + (curveHead.x || r.width / 2), r.top + (curveHead.y || r.height / 2), 8, 8]; };
+const aToolCell = (idx) => { const r = CV.tools.getBoundingClientRect(); const i = Math.max(0, idx); return [r.left + (TG.ox || 0) + (i % (TG.cols || 1)) * ((TG.sz || 10) + (TG.gap || 3)) + (TG.sz || 10) / 2, r.top + (TG.oy || 0) + (i / (TG.cols || 1) | 0) * ((TG.sz || 10) + (TG.gap || 3)) + (TG.sz || 10) / 2, 4, 4]; };
+const LATER = [];
+const later = (sec, fn) => { if (LIVE) LATER.push([nowS() + sec, fn]); };
+function hit(el, col, k = .5) {
+  if (!LIVE || !el || !el.animate) return;
+  const c = col || C.ice, a = (v) => rgba(c, v * k);
+  el.animate([{ boxShadow: `0 0 0 0 ${a(0)}, inset 0 0 0 0 ${a(0)}` }, { boxShadow: `0 0 1.6rem 0 ${a(1)}, inset 0 0 1.4rem 0 ${a(.5)}`, offset: .22 }, { boxShadow: `0 0 0 0 ${a(0)}, inset 0 0 0 0 ${a(0)}` }], { duration: 800, easing: 'ease-out' });
+}
+function rowFlash(id) { const tr = qRows[id]; if (!tr || !LIVE) return; tr.classList.remove('flash'); void tr.offsetWidth; tr.classList.add('flash'); }
+
+// ═════════ 极光背景（WebGL2，低分辨率） ═════════
+function compile(gl, type, src) { const sh = gl.createShader(type); gl.shaderSource(sh, src); gl.compileShader(sh); if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh) + '\n' + src.split('\n').map((l, i) => (i + 1) + ': ' + l).join('\n')); return sh; }
+function program(gl, vs, fs, tf) {
+  const p = gl.createProgram(); gl.attachShader(p, compile(gl, gl.VERTEX_SHADER, vs)); gl.attachShader(p, compile(gl, gl.FRAGMENT_SHADER, fs));
+  if (tf) gl.transformFeedbackVaryings(p, tf, gl.INTERLEAVED_ATTRIBS);
+  gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const U = {}; for (let i = 0, c = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); i < c; i++) { const nm = gl.getActiveUniform(p, i).name.replace(/\[0\]$/, ''); U[nm] = gl.getUniformLocation(p, nm); }
+  return { p, U };
+}
+const FULLQ = `#version 300 es
+void main(){ vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2)); gl_Position=vec4(p*2.-1.,0.,1.); }`;
+let AUR = null, aurE = 0, aurP = 0;
+const STAGE_PAL = [   // 每个阶段一套极光色：[主色, 副色]
+  [[.30, .14, .62], [.04, .34, .62]], [[.26, .20, .66], [.05, .42, .66]], [[.05, .36, .72], [.02, .56, .56]],
+  [[.40, .15, .64], [.10, .40, .72]], [[.50, .20, .56], [.18, .36, .76]], [[.05, .52, .46], [.30, .46, .16]],
+];
+const palCur = [[.3, .14, .62], [.04, .34, .62]];
+function initAurora() {
+  const cv = $('#aur'), gl = cv.getContext('webgl2', { antialias: false, alpha: false, powerPreference: 'high-performance' });
+  if (!gl) return null;
+  const fs = `#version 300 es
+precision highp float;
+uniform vec2 u_res,u_lat; uniform float u_time,u_e,u_p; uniform vec3 u_b,u_c;
+out vec4 o;
+float h21(vec2 p){p=fract(p*vec2(233.34,851.73));p+=dot(p,p+23.45);return fract(p.x*p.y);}
+float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h21(i),h21(i+vec2(1,0)),f.x),mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),f.x),f.y);}
+float fbm(vec2 p){float a=.5,s=0.;mat2 m=mat2(1.6,1.2,-1.2,1.6);for(int i=0;i<4;i++){s+=a*vn(p);p=m*p;a*=.5;}return s;}
+void main(){
+  vec2 uv=gl_FragCoord.xy/u_res; float asp=u_res.x/u_res.y;
+  vec2 p=(uv-.5)*vec2(asp,1.)*1.5; float t=u_time*.045;
+  vec2 q=vec2(fbm(p+vec2(0.,t)),fbm(p+vec2(5.2,1.3)-t*.8));
+  vec2 r=vec2(fbm(p+3.*q+vec2(1.7,9.2)+t*1.2),fbm(p+3.*q+vec2(8.3,2.8)-t));
+  float f=fbm(p+3.*r);
+  vec3 col=mix(vec3(.014,.02,.07),vec3(.075,.055,.22),smoothstep(.2,.9,f));
+  col+=u_b*smoothstep(.34,.86,q.x)*.85*f;
+  col+=u_c*smoothstep(.42,.92,r.y)*.7;
+  float cur=uv.y-(.58+.16*sin(uv.x*2.6+r.x*5.+t*3.)+.1*(r.y-.5));
+  float band=exp(-cur*cur*18.)*(.5+.5*fbm(vec2(uv.x*5.+t*4.,r.x*3.)));
+  col+=mix(u_c,u_b,.5)*band*.55;
+  vec2 dl=(uv-u_lat)*vec2(asp,1.); float gl2=exp(-dot(dl,dl)*5.5);
+  col+=mix(u_b,vec3(.2,.55,.95),.5)*gl2*(.12+.22*u_e+.25*u_p);
+  float vg=1.-.6*pow(length((uv-.5)*vec2(1.1,1.3)),2.);
+  col*=clamp(vg,.25,1.);
+  col+=(h21(gl_FragCoord.xy+fract(u_time))-.5)/160.;
+  o=vec4(col,1.);
+}`;
+  const pr = program(gl, FULLQ, fs); gl.bindVertexArray(gl.createVertexArray());
+  return { cv, gl, pr };
+}
+const aurKick = (k) => { aurP = Math.min(1.5, aurP + k); };
+function drawAurora(t, dt) {
+  if (!AUR) return;
+  const { gl, pr, cv } = AUR, st = S.done ? 5 : S.stage, tgt = STAGE_PAL[st];
+  for (let i = 0; i < 2; i++) for (let k = 0; k < 3; k++) palCur[i][k] += (tgt[i][k] - palCur[i][k]) * Math.min(1, dt * .8);
+  aurE += ((S.rateSum || 0) / 6500 - aurE) * Math.min(1, dt * 2); aurP *= Math.pow(.2, dt);
+  gl.viewport(0, 0, cv.width, cv.height); gl.useProgram(pr.p);
+  gl.uniform2f(pr.U.u_res, cv.width, cv.height); gl.uniform2f(pr.U.u_lat, LAT.x / innerWidth, 1 - LAT.y / innerHeight);
+  gl.uniform1f(pr.U.u_time, t); gl.uniform1f(pr.U.u_e, clamp(aurE, 0, 1.2)); gl.uniform1f(pr.U.u_p, aurP);
+  gl.uniform3fv(pr.U.u_b, palCur[0]); gl.uniform3fv(pr.U.u_c, palCur[1]);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+
+// ═════════ 全屏数据粒子：curl 流场 + 数据包（WebGL2 变换反馈） ═════════
+const NPART = 52000, NPK = 3072, MAXR = 24;
+let FLOW = null, FD = 1, nPart = 38000;
+const PKD = new Float32Array(NPK * 12);
+let pkHead = 0, pkDirty = true;
+function addPk(sx, sy, ex, ey, rgb, t0, dur, bend, size) {
+  const o = pkHead * 12; pkHead = (pkHead + 1) % NPK;
+  PKD[o] = sx; PKD[o + 1] = sy; PKD[o + 2] = ex; PKD[o + 3] = ey; PKD[o + 4] = t0; PKD[o + 5] = dur; PKD[o + 6] = bend; PKD[o + 7] = size; PKD[o + 8] = rgb[0]; PKD[o + 9] = rgb[1]; PKD[o + 10] = rgb[2]; PKD[o + 11] = 0;
+}
+function burst(from, to, n, col, o = {}) {
+  if (!LIVE || !from || !to || !FLOW || document.hidden) return;
+  const rgb = hex2rgb(col), T = nowS();
+  for (let i = 0; i < n; i++) {
+    const sx = from[0] + (Math.random() - .5) * from[2] * .7, sy = from[1] + (Math.random() - .5) * from[3] * .6;
+    const ex = to[0] + (Math.random() - .5) * Math.min(to[2], 120) * .5, ey = to[1] + (Math.random() - .5) * Math.min(to[3], 80) * .5;
+    addPk(sx, sy, ex, ey, rgb, T + i * (o.gap ?? .025) + Math.random() * .05, (o.dur ?? 1) * (.8 + Math.random() * .5), (Math.random() - .5) * .7 + (o.bend ?? 0), (o.size ?? 2.4) * (.7 + Math.random() * .7));
+  }
+}
+const rects = new Float32Array(MAXR * 4); let nRects = 0;
+const mouse = { x: -999, y: -999, on: 0 };
+addEventListener('pointermove', e => { mouse.x = e.clientX; mouse.y = e.clientY; mouse.on = 1; });
+document.documentElement.addEventListener('mouseleave', () => { mouse.on = 0; });
+
+function initFlow() {
+  const cv = $('#flow'), gl = cv.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
+  if (!gl) return null;
+  const NOISE = `
+float hash(float n){return fract(sin(n*12.9898)*43758.5453);}
+float h2(vec2 p){p=fract(p*vec2(.1031,.1030));p+=dot(p,p.yx+33.33);return fract((p.x+p.y)*p.x);}
+float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*f*(f*(f*6.-15.)+10.);return mix(mix(h2(i),h2(i+vec2(1,0)),f.x),mix(h2(i+vec2(0,1)),h2(i+vec2(1,1)),f.x),f.y);}
+float pot(vec2 p){return vn(p)*.65+vn(p*2.1+7.3)*.35;}
+vec2 curl(vec2 p){const float e=.12;float a=pot(p+vec2(0,e))-pot(p-vec2(0,e));float b=pot(p+vec2(e,0))-pot(p-vec2(e,0));return vec2(a,-b)/(2.*e);}`;
+  const upd = program(gl, `#version 300 es
+precision highp float;
+layout(location=0) in vec4 a_s;
+uniform float u_dt,u_time,u_rate,u_attR,u_mon; uniform vec2 u_res,u_att,u_mouse;
+out vec4 v_s;
+${NOISE}
+void main(){
+  vec2 p=a_s.xy; float age=a_s.z, seed=a_s.w;
+  float sp=.55+.9*hash(seed*3.7);
+  vec2 q=p/280.+vec2(u_time*.022,-u_time*.017);
+  vec2 v=curl(q)*(20.+38.*u_rate)*sp;
+  vec2 d=u_att-p; float L=length(d); vec2 n=d/max(L,1.);
+  float w=smoothstep(u_attR*3.4,u_attR*.45,L);
+  v+=n*(10.+210.*w*w)*(.35+.9*u_rate)*sp;
+  v+=vec2(-n.y,n.x)*(16.+120.*w)*sp;
+  vec2 md=p-u_mouse; float ml=length(md); v+=u_mon*md/max(ml,1.)*smoothstep(130.,0.,ml)*170.;
+  p+=v*u_dt; age+=u_dt/(7.+9.*hash(seed*1.3));
+  bool outside=p.x<-30.||p.y<-30.||p.x>u_res.x+30.||p.y>u_res.y+30.;
+  if(age>=1.||outside||L<u_attR*.3){
+    float k=floor(u_time*37.)+seed*1000.;
+    p=vec2(hash(k*1.1+seed*91.7),hash(k*2.3+seed*13.1))*u_res; age=0.;
+  }
+  v_s=vec4(p,age,seed); gl_Position=vec4(0.,0.,0.,1.);
+}`, `#version 300 es
+precision mediump float; void main(){}`, ['v_s']);
+  const drw = program(gl, `#version 300 es
+precision highp float;
+layout(location=0) in vec4 a_s;
+uniform vec2 u_res,u_att; uniform float u_dpr,u_rate,u_attR,u_dens; uniform vec4 u_rect[${MAXR}]; uniform int u_nr;
+out vec3 v_c; out float v_a;
+float hash(float n){return fract(sin(n*12.9898)*43758.5453);}
+void main(){
+  vec2 p=a_s.xy; float age=a_s.z, seed=a_s.w;
+  float env=sin(3.14159*clamp(age,0.,1.));
+  float gate=step(hash(seed*5.7),u_dens);
+  float dim=1.;
+  for(int i=0;i<${MAXR};i++){ if(i>=u_nr) break; vec4 r=u_rect[i];
+    vec2 e=smoothstep(r.xy-3.,r.xy+3.,p)*(1.-smoothstep(r.zw-3.,r.zw+3.,p)); dim*=1.-.8*e.x*e.y; }
+  float d=distance(p,u_att); float near=smoothstep(u_attR*2.8,u_attR*.5,d)*smoothstep(u_attR*.3,u_attR*.75,d);
+  float s2=hash(seed*3.3);
+  vec3 col=s2<.5?vec3(.62,.80,1.):s2<.8?vec3(.30,.90,.85):s2<.93?vec3(.66,.58,1.):vec3(1.,.72,.40);
+  col=mix(col,vec3(1.),near*.4);
+  float s3=hash(seed*7.7);
+  v_c=col;
+  float core=mix(.2,1.,smoothstep(u_attR*1.3,u_attR*1.95,d));
+  v_a=env*gate*max(dim,.0)*core*(.30+.5*near*(.4+u_rate))*(.55+.45*hash(seed*9.1));
+  gl_PointSize=(1.15+1.5*s3*s3+near*1.4)*u_dpr;
+  vec2 c=p/u_res*2.-1.; gl_Position=vec4(c.x,-c.y,0.,1.);
+}`, `#version 300 es
+precision mediump float;
+in vec3 v_c; in float v_a; out vec4 o;
+void main(){ vec2 q=gl_PointCoord-.5; float r=length(q); if(r>.5) discard; float a=smoothstep(.5,.0,r); a*=a*v_a; o=vec4(v_c*a,a*.35); }`);
+  const pk = program(gl, `#version 300 es
+precision highp float;
+layout(location=1) in vec4 a_a;
+layout(location=2) in vec4 a_b;
+layout(location=3) in vec4 a_c;
+uniform vec2 u_res; uniform float u_time,u_dpr;
+out vec4 v_c;
+void main(){
+  float k=float(gl_VertexID);
+  float u=(u_time-a_b.x)/a_b.y-k*.02;
+  if(u<=0.||u>=1.){ gl_Position=vec4(2.,2.,2.,1.); gl_PointSize=0.; v_c=vec4(0.); return; }
+  float e=u<.5?2.*u*u:1.-pow(-2.*u+2.,2.)/2.;
+  vec2 s=a_a.xy,d=a_a.zw,dd=d-s;
+  vec2 m=s+dd*.5+vec2(-dd.y,dd.x)*a_b.z*.5;
+  vec2 p=(1.-e)*(1.-e)*s+2.*(1.-e)*e*m+e*e*d;
+  float env=sin(3.14159*u);
+  float head=1.-k/6.;
+  gl_PointSize=a_b.w*u_dpr*(.45+.55*head)*(.75+.6*env);
+  v_c=vec4(a_c.rgb*(.75+.5*head),env*head);
+  vec2 c=p/u_res*2.-1.; gl_Position=vec4(c.x,-c.y,0.,1.);
+}`, `#version 300 es
+precision mediump float;
+in vec4 v_c; out vec4 o;
+void main(){ vec2 q=gl_PointCoord-.5; float r=length(q); if(r>.5) discard; float a=smoothstep(.5,.0,r); float core=smoothstep(.22,.0,r); o=vec4((v_c.rgb+core*.7)*a*v_c.a*1.3,a*v_c.a*.45); }`);
+  const fade = program(gl, FULLQ, `#version 300 es
+precision mediump float; uniform vec4 u_col; out vec4 o; void main(){ o=u_col; }`);
+  // 粒子缓冲（乒乓）
+  const data = new Float32Array(NPART * 4);
+  for (let i = 0; i < NPART; i++) { data[i * 4] = Math.random() * innerWidth; data[i * 4 + 1] = Math.random() * innerHeight; data[i * 4 + 2] = Math.random(); data[i * 4 + 3] = Math.random(); }
+  const bufs = [gl.createBuffer(), gl.createBuffer()], vaos = [gl.createVertexArray(), gl.createVertexArray()];
+  for (let i = 0; i < 2; i++) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, bufs[i]); gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_COPY);
+    gl.bindVertexArray(vaos[i]); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 16, 0);
+  }
+  // 数据包缓冲（实例化）
+  const pkBuf = gl.createBuffer(), pkVao = gl.createVertexArray();
+  gl.bindVertexArray(pkVao); gl.bindBuffer(gl.ARRAY_BUFFER, pkBuf); gl.bufferData(gl.ARRAY_BUFFER, PKD.byteLength, gl.DYNAMIC_DRAW);
+  for (const [loc, off] of [[1, 0], [2, 16], [3, 32]]) { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 4, gl.FLOAT, false, 48, off); gl.vertexAttribDivisor(loc, 1); }
+  const emptyVao = gl.createVertexArray();
+  gl.bindVertexArray(null);
+  return { cv, gl, upd, drw, pk, fade, bufs, vaos, cur: 0, pkBuf, pkVao, emptyVao };
+}
+function drawFlow(t, dt) {
+  if (!FLOW) return;
+  const { gl, cv, upd, drw, pk, fade, bufs, vaos, pkBuf, pkVao, emptyVao } = FLOW;
+  gl.viewport(0, 0, cv.width, cv.height);
+  const W = innerWidth, H = innerHeight, rate = clamp((S.rateSum || 0) / 6500, 0, 1.2) * .85 + .1, attR = LAT.r * .62;
+  // 1. 残影衰减（尾迹）
+  gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.bindVertexArray(emptyVao); gl.useProgram(fade.p);
+  gl.blendEquation(gl.FUNC_ADD); gl.blendFunc(gl.ZERO, gl.ONE_MINUS_SRC_ALPHA);
+  const f = 1 - Math.pow(.935, dt * 60); gl.uniform4f(fade.U.u_col, 0, 0, 0, f); gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.blendEquation(gl.FUNC_REVERSE_SUBTRACT); gl.blendFunc(gl.ONE, gl.ONE); const sub = 2.4 / 255; gl.uniform4f(fade.U.u_col, sub, sub, sub, sub); gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.blendEquation(gl.FUNC_ADD);
+  // 2. 粒子更新（变换反馈）
+  gl.useProgram(upd.p);
+  gl.uniform1f(upd.U.u_dt, Math.min(dt, .05)); gl.uniform1f(upd.U.u_time, t); gl.uniform1f(upd.U.u_rate, rate); gl.uniform1f(upd.U.u_attR, attR); gl.uniform1f(upd.U.u_mon, mouse.on);
+  gl.uniform2f(upd.U.u_res, W, H); gl.uniform2f(upd.U.u_att, LAT.x, LAT.y); gl.uniform2f(upd.U.u_mouse, mouse.x, mouse.y);
+  gl.bindVertexArray(vaos[FLOW.cur]); gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, bufs[1 - FLOW.cur]);
+  gl.enable(gl.RASTERIZER_DISCARD); gl.beginTransformFeedback(gl.POINTS); gl.drawArrays(gl.POINTS, 0, nPart); gl.endTransformFeedback(); gl.disable(gl.RASTERIZER_DISCARD);
+  gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, null);
+  FLOW.cur = 1 - FLOW.cur;
+  // 3. 画粒子（加法混合）
+  gl.blendFunc(gl.ONE, gl.ONE); gl.useProgram(drw.p); gl.bindVertexArray(vaos[FLOW.cur]);
+  gl.uniform2f(drw.U.u_res, W, H); gl.uniform2f(drw.U.u_att, LAT.x, LAT.y); gl.uniform1f(drw.U.u_dpr, FD); gl.uniform1f(drw.U.u_rate, rate); gl.uniform1f(drw.U.u_attR, attR);
+  gl.uniform1f(drw.U.u_dens, clamp(.5 + rate * .55, .5, 1)); gl.uniform4fv(drw.U.u_rect, rects); gl.uniform1i(drw.U.u_nr, nRects);
+  gl.drawArrays(gl.POINTS, 0, nPart);
+  // 4. 数据包
+  gl.useProgram(pk.p); gl.bindVertexArray(pkVao); gl.bindBuffer(gl.ARRAY_BUFFER, pkBuf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, PKD);
+  gl.uniform2f(pk.U.u_res, W, H); gl.uniform1f(pk.U.u_time, t); gl.uniform1f(pk.U.u_dpr, FD);
+  gl.drawArraysInstanced(gl.POINTS, 0, 6, NPK);
+  gl.bindVertexArray(null); gl.disable(gl.BLEND);
+}
+
+// ═════════ 任务晶格（WebGL2 丝带，2 倍以上超采样） ═════════
+const LAT = { x: 0, y: 0, r: 100 };
+const D3 = 3.6, NS = 56, NP = 160, CORE_N = 15, NDUST = 1500, NFLOW = 900;
+const lw = { W: 0, H: 0, CX: 0, CY: 0, LR: 100, ss: 2 };
+const rnd = (i, k) => { const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return x - Math.floor(x); };
+const strands = Array.from({ length: NS }, (_, i) => ({ i, a: rnd(i, 1) * 6.2832, b: (rnd(i, 2) * 2 - 1) * 1.38, ph: rnd(i, 3) * 6.2832, y: -1 + 2 * (((i * 37) % NS) + .5) / NS, k: 2 + (i % 3), wob: rnd(i, 4) * 6.2832, dr: (rnd(i, 5) - .5) * .5 }));
+let LGL = null;
+const LVS = `#version 300 es
+precision highp float;
+in float a_u; in float a_side; in vec4 a_s; in vec4 a_t;
+uniform float u_from,u_to,u_raw,u_time,u_scale,u_amp,u_wob,u_nBand,u_nCore,u_n,u_width;
+uniform vec4 u_rt; uniform vec2 u_center,u_res;
+out float v_side,v_light,v_depth,v_u,v_ph,v_coc; flat out int v_role;
+const float D=${D3.toFixed(1)};
+vec3 formPt(float f,float u){
+  float th=u*6.2832+a_s.z;
+  if(f<.5){float r=.42+.05*sin(th*3.+a_t.y+u_time*.8);return vec3(r*cos(th),a_s.w*1.1+.07*sin(th*2.+a_t.y+u_time*.6),r*sin(th));}
+  if(f>2.5){float phi=a_s.z*3.+u*6.2832*a_t.x+u_time*a_t.z*2.;float rr=1.12+.2*cos(phi);return vec3(rr*cos(th),.22*sin(phi),rr*sin(th));}
+  bool fl=f>1.5;
+  float b=(fl?a_s.y*.26:a_s.y)+.12*sin(u_time*.35+a_s.z),a=a_s.x+u_time*a_t.z*.4;
+  float cx=cos(th),cz=sin(th),y1=-cz*sin(b),z1=cz*cos(b),ca=cos(a),sa=sin(a);
+  vec3 p=vec3(cx*ca+z1*sa,y1,-cx*sa+z1*ca);
+  return fl?p*vec3(1.34,.55,1.34):p;
+}
+vec3 world(float u,float m,float band){
+  vec3 p=mix(formPt(u_from,u),formPt(u_to,u),m);
+  return p*u_amp*(1.+u_wob*(band>.5?3.:1.)*sin(u*18.85+u_time*3.+a_s.z));
+}
+vec3 view(vec3 p){float x1=p.x*u_rt.x+p.z*u_rt.y,z1=-p.x*u_rt.y+p.z*u_rt.x;return vec3(x1,p.y*u_rt.z-z1*u_rt.w,p.y*u_rt.w+z1*u_rt.z);}
+vec2 scr(vec3 q){return u_center+q.xy*(u_scale*D/(D+q.z));}
+void main(){
+  float idx=a_t.w;
+  int role=idx<u_nBand?2:idx<u_nBand+u_nCore?1:0;
+  float band=role==2?1.:0.;
+  float v=clamp(u_raw*1.6-idx/u_n*.6,0.,1.),m=v*v*(3.-2.*v);
+  vec3 w0=world(a_u,m,band),w1=world(a_u+.004,m,band);
+  vec3 q0=view(w0);
+  vec2 p0=scr(q0),p1=scr(view(w1));
+  vec2 tg=normalize(p1-p0+vec2(1e-5)),nrm=vec2(-tg.y,tg.x);
+  float coc=clamp(abs(q0.z+.12)/1.0,0.,1.);
+  float wpx=u_width*D/(D+q0.z)*(role==2?1.3:role==1?1.1:.85)*(1.+coc*1.1);
+  vec2 p=p0+nrm*a_side*wpx*.5;
+  gl_Position=vec4(p.x/u_res.x*2.-1.,1.-p.y/u_res.y*2.,q0.z/3.,1.);
+  bool col=u_from<.5&&u_to<.5;
+  vec3 n=normalize(view(col?vec3(w0.x,0.,w0.z):w0)+vec3(1e-5));
+  v_light=.3+.7*max(dot(n,normalize(vec3(-.45,-.6,-.66))),0.);
+  v_side=a_side;v_depth=clamp((q0.z+1.3)/2.6,0.,1.);v_u=a_u;v_ph=a_s.z;v_role=role;v_coc=coc;
+}`;
+const LFS = `#version 300 es
+precision highp float;
+in float v_side,v_light,v_depth,v_u,v_ph,v_coc; flat in int v_role;
+uniform vec3 u_c0,u_c1,u_c2,u_pc;
+uniform float u_time,u_pulse,u_glow,u_fade;
+out vec4 o;
+void main(){
+  float e=abs(v_side),tube=1.-e*e;
+  vec3 base=v_role==2?u_c2:v_role==1?u_c1:u_c0;
+  float sp=v_role==2?1.5:.42;
+  float ff=fract(v_u*2.+v_ph-u_time*sp)-.5;
+  float pl=exp(-ff*ff*900.)*u_pulse*(v_role==2?1.:.7);
+  float amp=1./(1.+v_coc*1.6)*(1.-v_depth*u_fade);
+  if(u_glow>0.){ float fo=(1.-e); vec3 gc=(base*.75+u_pc*pl*2.)*u_glow*fo*fo*amp; o=vec4(gc,max(gc.r,max(gc.g,gc.b))); return; }
+  float soft=.26+v_coc*.7;
+  float a=(1.-smoothstep(1.-soft,1.,e))*amp;
+  if(a<.015) discard;
+  vec3 c=base*(.30+.78*tube*v_light)+vec3(pow(tube,6.)*.26*v_light);
+  c=mix(c*.32,c,smoothstep(1.,.55,e));
+  c=mix(c,u_pc,clamp(pl*tube*tube*1.6,0.,1.));
+  o=vec4(c*a,a);
+}`;
+const LPVS = `#version 300 es
+precision highp float;
+in vec4 a_p; in vec2 a_q;
+uniform float u_time,u_heat,u_rate,u_scale,u_amp,u_ss,u_flash;
+uniform vec4 u_rt; uniform vec2 u_center,u_res;
+out float v_a,v_k;
+const float D=${D3.toFixed(1)};
+vec3 view(vec3 p){float x1=p.x*u_rt.x+p.z*u_rt.y,z1=-p.x*u_rt.y+p.z*u_rt.x;return vec3(x1,p.y*u_rt.z-z1*u_rt.w,p.y*u_rt.w+z1*u_rt.z);}
+void main(){
+  vec3 p;float a;
+  if(a_q.y<.5){
+    float th=a_p.y+u_time*a_q.x*(.18+.5*u_heat),r=a_p.x*(1.+u_flash*.3);
+    float ci=cos(a_p.z),si=sin(a_p.z);
+    p=vec3(r*cos(th),-r*sin(th)*si+.05*sin(u_time*1.3+a_p.w*6.28),r*sin(th)*ci);
+    a=.5+.3*sin(u_time*2.+a_p.w*30.);
+  }else{
+    float pr=fract(u_time*a_q.x*(.05+.22*u_rate)+a_p.w);
+    float r=mix(2.6,.9,pr),th=a_p.y+pr*5.5;
+    p=vec3(r*cos(th),(1.-pr)*a_p.z,r*sin(th));
+    a=smoothstep(0.,.18,pr)*(1.-smoothstep(.8,1.,pr))*step(a_p.w,.2+.8*u_rate);
+  }
+  vec3 q=view(p*u_amp);
+  float k=D/(D+q.z);
+  float coc=clamp(abs(q.z+.12)/1.25,0.,1.);
+  vec2 sp=u_center+q.xy*(u_scale*k);
+  gl_Position=vec4(sp.x/u_res.x*2.-1.,1.-sp.y/u_res.y*2.,q.z/3.,1.);
+  gl_PointSize=(a_q.y<.5?2.4:3.4)*u_ss*k*(1.+coc*1.3);
+  v_a=a*(1.-clamp((q.z+1.6)/3.2,0.,1.)*.5)/(1.+coc*1.6);v_k=a_q.y;
+}`;
+const LPFS = `#version 300 es
+precision highp float;
+in float v_a,v_k; uniform vec3 u_cd,u_cf; out vec4 o;
+void main(){
+  float r=length(gl_PointCoord-.5);
+  if(r>.5) discard;
+  float a=smoothstep(.5,.1,r)*v_a;
+  vec3 c=v_k<.5?u_cd:u_cf;
+  o=vec4(c*a,a);
+}`;
+function initLattice() {
+  const cv = $('#gl'), gl = cv.getContext('webgl2', { antialias: true, alpha: true, premultipliedAlpha: true });
+  if (!gl) return null;
+  const prog = program(gl, LVS, LFS), pp = program(gl, LPVS, LPFS);
+  const per = 10, data = new Float32Array(NS * (NP + 1) * 2 * per), idx = new Uint16Array(NS * NP * 6);
+  let o = 0, n = 0;
+  for (const s of strands) {
+    const v0 = s.i * (NP + 1) * 2;
+    for (let j = 0; j <= NP; j++) for (const side of [-1, 1]) { data.set([j / NP, side, s.a, s.b, s.ph, s.y, s.k, s.wob, s.dr, s.i], o); o += per; }
+    for (let j = 0; j < NP; j++) { const a = v0 + j * 2; idx.set([a, a + 1, a + 2, a + 1, a + 3, a + 2], n); n += 6; }
+  }
+  const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+  for (const [name, size, off] of [['a_u', 1, 0], ['a_side', 1, 1], ['a_s', 4, 2], ['a_t', 4, 6]]) { const l = gl.getAttribLocation(prog.p, name); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, size, gl.FLOAT, false, per * 4, off * 4); }
+  // 尘埃 + 数据流
+  const nn = NDUST + NFLOW, pd = new Float32Array(nn * 6);
+  for (let i = 0; i < nn; i++) {
+    const dust = i < NDUST, r = Math.random;
+    pd.set(dust ? [1.25 + Math.pow(r(), .7) * .95, r() * 6.2832, (r() - .5) * .5 + (r() < .3 ? 1.1 : 0), r(), .3 + r() * .9, 0] : [0, r() * 6.2832, (r() - .5) * 1.6, r(), .6 + r() * .8, 1], i * 6);
+  }
+  const pvao = gl.createVertexArray(); gl.bindVertexArray(pvao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ARRAY_BUFFER, pd, gl.STATIC_DRAW);
+  for (const [name, size, off] of [['a_p', 4, 0], ['a_q', 2, 4]]) { const l = gl.getAttribLocation(pp.p, name); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, size, gl.FLOAT, false, 24, off * 4); }
+  gl.bindVertexArray(null);
+  return { cv, gl, prog, pp, vao, pvao, count: idx.length, nn };
+}
+const ST = {};
+let form = { from: 0, to: 0, t0: 0 }, rot = 0, coreFlash = 0, lastFlash = 0;
+const waves = [];
+const shock = (k) => { coreFlash = Math.max(coreFlash, k); };
+const latMouse = { x: 0, y: 0, sx: 0, sy: 0 };
+TILE.lat.addEventListener('pointermove', e => { const r = TILE.lat.getBoundingClientRect(); latMouse.x = (e.clientX - r.left) / r.width * 2 - 1; latMouse.y = (e.clientY - r.top) / r.height * 2 - 1; });
+TILE.lat.addEventListener('pointerleave', () => { latMouse.x = latMouse.y = 0; });
+const coreCtx = $('#core').getContext('2d');
+
+function drawLattice(now, t, dt) {
+  const s = S, working = s.done ? 0 : s.tasks.filter(x => x.st === 'run' || x.st === 'fix').length, leaderBusy = !s.done && agentState('cx')[1] === 'run';
+  const tf = s.done ? 3 : FORM_OF[s.stage];
+  if (tf !== form.to) form = { from: form.to, to: tf, t0: now };
+  const heat = s.done ? .3 : Math.min(1.5, .5 + (leaderBusy ? .25 : 0) + working * .22);
+  rot += dt * (.06 + .2 * heat);
+  latMouse.sx += (latMouse.x - latMouse.sx) * .06; latMouse.sy += (latMouse.y - latMouse.sy) * .06;
+  if (coreFlash > lastFlash + .05) waves.push({ t0: now, k: coreFlash });
+  lastFlash = coreFlash; coreFlash *= Math.pow(.05, dt);
+  const tilt = .36 + .06 * Math.sin(t * .3) + latMouse.sy * .2, r2 = rot + latMouse.sx * .45;
+  const thr = clamp((s.rateSum || 0) / 6500, 0, 1.2);
+  Object.assign(ST, { from: form.from, to: form.to, raw: Math.min(1, (now - form.t0) / 2200), t, cr: Math.cos(r2), sr: Math.sin(r2), ct: Math.cos(tilt), st: Math.sin(tilt),
+    scale: lw.LR, amp: 1 + coreFlash * .07 + .012 * Math.sin(t * 1.4), wob: .015 * heat, nBand: Math.min(20, working * 5 + (leaderBusy ? 2 : 0)),
+    pulse: s.done ? .25 : Math.min(1, .35 + heat * .35 + thr * .4), heat, rate: Math.min(1, .15 + thr) });
+  if (LGL) drawLatGL(ST);
+  drawCore(now, t);
+}
+function drawLatGL(st) {
+  const { gl, cv, prog, pp, vao, pvao, count } = LGL, U = prog.U;
+  gl.viewport(0, 0, cv.width, cv.height); gl.clearColor(0, 0, 0, 0); gl.depthMask(true); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.useProgram(prog.p); gl.bindVertexArray(vao);
+  const f1 = { u_from: st.from, u_to: st.to, u_raw: st.raw, u_time: st.t, u_scale: st.scale, u_amp: st.amp, u_wob: st.wob, u_nBand: st.nBand, u_nCore: CORE_N, u_n: NS, u_pulse: st.pulse, u_fade: .6 };
+  for (const [k, v] of Object.entries(f1)) gl.uniform1f(U[k], v);
+  gl.uniform4f(U.u_rt, st.cr, st.sr, st.ct, st.st); gl.uniform2f(U.u_center, lw.CX, lw.CY); gl.uniform2f(U.u_res, lw.W, lw.H);
+  gl.uniform3fv(U.u_c0, hex2rgb('#7fb0ff')); gl.uniform3fv(U.u_c1, hex2rgb('#b196ff')); gl.uniform3fv(U.u_c2, hex2rgb('#ffb56e')); gl.uniform3fv(U.u_pc, [.8, .97, 1]);
+  const width = Math.max(3.4, lw.LR / 26);
+  gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);   // 辉光：两层加法
+  gl.uniform1f(U.u_width, width * 3.4); gl.uniform1f(U.u_glow, .1 + .07 * st.heat); gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, 0);
+  gl.uniform1f(U.u_width, width * 9); gl.uniform1f(U.u_glow, .03 + .022 * st.heat); gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, 0);
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LESS); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  gl.uniform1f(U.u_width, width); gl.uniform1f(U.u_glow, 0); gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, 0);
+  gl.useProgram(pp.p); gl.bindVertexArray(pvao); gl.depthMask(false); gl.blendFunc(gl.ONE, gl.ONE);
+  for (const [k, v] of Object.entries({ u_time: st.t, u_heat: st.heat, u_rate: st.rate, u_scale: st.scale, u_amp: st.amp, u_ss: lw.ss, u_flash: Math.max(0, coreFlash - .3) })) gl.uniform1f(pp.U[k], v);
+  gl.uniform4f(pp.U.u_rt, st.cr, st.sr, st.ct, st.st); gl.uniform2f(pp.U.u_center, lw.CX, lw.CY); gl.uniform2f(pp.U.u_res, lw.W, lw.H);
+  gl.uniform3fv(pp.U.u_cd, [.55, .7, 1]); gl.uniform3fv(pp.U.u_cf, hex2rgb(C.cyan));
+  gl.drawArrays(gl.POINTS, 0, LGL.nn);
+  gl.depthMask(true); gl.disable(gl.BLEND); gl.bindVertexArray(null);
+}
+function drawCore(now, t) {
+  const g = coreCtx, { W, H, CX, CY, LR } = lw; if (!W) return;
+  g.setTransform(lw.cd, 0, 0, lw.cd, 0, 0); g.clearRect(0, 0, W, H);
+  const ry = LR * 1.62 * Math.abs(ST.st);
+  // 轨道
+  for (const [k, a] of [[1.62, .14], [1.98, .07], [2.4, .04]]) { g.strokeStyle = `rgba(160,190,255,${a})`; g.lineWidth = 1; g.beginPath(); g.ellipse(CX, CY, LR * k, LR * k * Math.abs(ST.st), 0, 0, 6.2832); g.stroke(); }
+  g.setLineDash([3, 6]); g.strokeStyle = 'rgba(160,190,255,.12)'; g.beginPath(); g.moveTo(CX, CY - LR * 1.55); g.lineTo(CX, CY + LR * 1.55); g.stroke(); g.setLineDash([]);
+  // 成员卫星：沿轨道公转，干活时更亮
+  AGENTS.forEach((a, i) => {
+    const ang = t * (.18 + i * .05) + i * 1.57, px = CX + Math.cos(ang) * LR * 1.62, py = CY + Math.sin(ang) * ry, front = Math.sin(ang) > 0, act = A[a.id].rate > 5 ? 1 : .35, rad = (front ? 4.2 : 3) * (.8 + .5 * act);
+    const gr = g.createRadialGradient(px, py, 0, px, py, rad * 4); gr.addColorStop(0, rgba(a.col, .75 * act)); gr.addColorStop(1, rgba(a.col, 0));
+    g.fillStyle = gr; g.beginPath(); g.arc(px, py, rad * 4, 0, 6.2832); g.fill();
+    g.fillStyle = a.col; g.globalAlpha = front ? 1 : .6; g.beginPath(); g.arc(px, py, rad, 0, 6.2832); g.fill(); g.globalAlpha = 1;
+    g.fillStyle = 'rgba(232,238,255,.8)'; g.font = '10px "Microsoft YaHei UI", sans-serif'; g.textAlign = 'left'; g.textBaseline = 'middle';
+    if (front && act > .5) g.fillText(a.short, px + rad + 5, py);
+  });
+  // 冲击波
+  for (let i = waves.length - 1; i >= 0; i--) {
+    const w = waves[i], p = (now - w.t0) / 1400;
+    if (p >= 1) { waves.splice(i, 1); continue; }
+    const e = 1 - (1 - p) ** 3, rr = LR * (1 + e * 1.15);
+    g.globalAlpha = (1 - p) * .85; g.strokeStyle = C.cyan; g.lineWidth = 2.5 * (1 - p) + .5;
+    g.beginPath(); g.ellipse(CX, CY, rr, rr * Math.abs(ST.st), 0, 0, 6.2832); g.stroke();
+    g.strokeStyle = C.ice; g.lineWidth = 1; g.beginPath(); g.ellipse(CX, CY, rr * .82, rr * .82 * Math.abs(ST.st), 0, 0, 6.2832); g.stroke();
+  }
+  g.globalAlpha = 1;
+}
+
+// ═════════ 布局 ═════════
+let layoutQueued = false;
+function scheduleLayout() { if (layoutQueued) return; layoutQueued = true; requestAnimationFrame(() => { layoutQueued = false; layoutAll(); }); }
+function layoutAll() {
+  // 晶格画布
+  const r = TILE.lat.getBoundingClientRect();
+  if (r.width > 10) {
+    const topH = $('.lat-top', TILE.lat).getBoundingClientRect().height, footH = $('.lat-foot', TILE.lat).getBoundingClientRect().height;
+    lw.W = r.width; lw.H = r.height; lw.ss = Math.max(2, window.devicePixelRatio || 1); lw.cd = DPR;
+    lw.CX = r.width / 2; lw.CY = (topH + (r.height - footH)) / 2 + 4; lw.LR = Math.max(60, Math.min(r.width * .235, (r.height - topH - footH) * .335));
+    const gl = $('#gl'); gl.width = Math.round(r.width * lw.ss); gl.height = Math.round(r.height * lw.ss);
+    const co = $('#core'); co.width = Math.round(r.width * lw.cd); co.height = Math.round(r.height * lw.cd);
+    LAT.x = r.left + lw.CX; LAT.y = r.top + lw.CY; LAT.r = lw.LR;
+  }
+  // 全屏层
+  const fc = $('#flow'); FD = Math.min(1.5, window.devicePixelRatio || 1);
+  const W = innerWidth, H = innerHeight;
+  nPart = clamp(Math.round(W * H / 1.6e6 * 38000), 24000, NPART);
+  if (fc.width !== Math.round(W * FD) || fc.height !== Math.round(H * FD)) { fc.width = Math.round(W * FD); fc.height = Math.round(H * FD); }
+  const ac = $('#aur'), as = .4; const aw = Math.max(320, Math.round(W * as)), ah = Math.max(200, Math.round(H * as));
+  if (ac.width !== aw || ac.height !== ah) { ac.width = aw; ac.height = ah; }
+  // 粒子要避让的面板（流场在面板上方压暗，晶格区保持明亮）
+  nRects = 0;
+  for (const el of $$('.glass, .dimzone')) {
+    if (nRects >= MAXR) break;
+    const b = el.getBoundingClientRect(); if (b.width < 4) continue;
+    rects.set([b.left, b.top, b.right, b.bottom], nRects * 4); nRects++;
+  }
+}
+
+// ═════════ 主循环 ═════════
+let last = 0, simAcc = 0, domAcc = 0, chartAcc = 0, ambAcc = 0, frameN = 0;
+function frame(ts) {
+  requestAnimationFrame(frame);
+  const t = ts / 1000, dt = Math.min(.05, last ? t - last : .016); last = t; frameN++;
+  simAcc += dt; let guard = 0;
+  while (simAcc >= .1 && guard++ < 5) { simAcc -= .1; step(.1); }
+  domAcc += dt; if (domAcc >= .12) { updateDom(domAcc); domAcc = 0; }
+  chartAcc += dt; if (chartAcc >= .066) { chartAcc = 0; drawSpark(); drawActs(); drawTools(); drawReview(); drawCurve(); drawTrace(); }
+  const T = nowS();
+  for (let i = LATER.length - 1; i >= 0; i--) if (T >= LATER[i][0]) { const fn = LATER[i][1]; LATER.splice(i, 1); try { fn(); } catch (e) { console.warn(e); } }
+  ambAcc += dt; if (ambAcc >= .3) { ambAcc = 0; ambient(); }
+  if (frameN % 2 === 0) drawAurora(t, dt * 2);
+  drawLattice(ts, t, dt);
+  drawFlow(T, dt);
+}
+function ambient() {
+  if (document.hidden) return;
+  for (const a of AGENTS) {
+    const run = agentState(a.id)[1] === 'run';
+    if (!run) continue;
+    if (a.id === 'cx') { if (S.stage !== 2) burst(aLat(), aCard('cx'), 2, C.ice, { dur: 1.1, size: 2 }); }
+    else burst(aCard(a.id), aLat(), 2, a.col, { dur: 1.2, size: 2.1 });
+  }
+  if (S.done && Math.random() < .5) burst(aLat(), aEl(TILE.ledger), 1, C.ice, { dur: 1.5, size: 2 });
+  if (!S.done && S.stage >= 2 && Math.random() < .55) {
+    const t = S.tasks.find(x => x.st === 'run' || x.st === 'fix');
+    if (t) burst(aLat(), aEl(qRow(t.id)), 1, AG[t.who].col, { dur: 1.2, size: 1.8 });
+    if (Math.random() < .5) burst(aLat(), aEl(TILE.trace), 1, C.vio, { dur: 1.4, size: 1.8 });
+  }
+}
+
+// ═════════ 交互 ═════════
+$('#cmd').addEventListener('submit', e => {
+  e.preventDefault(); const inp = $('#cmdIn'), v = inp.value.trim(); if (!v) return;
+  const who = $('#cmdTo').selectedIndex, id = AGENTS[who].id;
+  log('sys', `用户指令 → ${AG[id].name}：${v}`); inp.value = '';
+  burst(aEl(inp), aLat(), 16, C.ice, { dur: 1 }); shock(.9); aurKick(.5);
+  later(.9, () => burst(aLat(), aCard(id), 8, AG[id].col, { dur: .9 }));
+});
+$('#btnFold').addEventListener('click', () => { const f = $('#app').classList.toggle('fold'); $('#btnFold').textContent = f ? '⟩' : '⟨ 收起'; setTimeout(scheduleLayout, 60); });
+$('#btnNew').addEventListener('click', () => { if (S.done) S.hold = HOLD; });
+$('#hist').addEventListener('click', e => { const hi = e.target.closest('.hi'); if (!hi) return; $$('.hi', E.hist).forEach(x => x.classList.toggle('on', x === hi)); });
+addEventListener('resize', scheduleLayout);
+document.addEventListener('visibilitychange', () => { last = 0; });
+
+// ═════════ 启动 ═════════
+buildCards();
+CV.tools._chart = CV.review._chart = CV.curve._chart = CV.trace._chart = CV.spark._chart = true;
+Object.values(CV).forEach(c => chartObs.observe(c));
+new ResizeObserver(scheduleLayout).observe(TILE.lat);
+newRun(0);
+for (let i = 0; i < AT * 10; i++) { warmLeft -= .1; step(.1); }   // 预热：首屏直接是进行中的状态
+warmLeft = 0; LIVE = true;
+const tgt0 = STAGE_PAL[S.done ? 5 : S.stage]; palCur[0] = tgt0[0].slice(); palCur[1] = tgt0[1].slice();
+try { AUR = initAurora(); } catch (err) { console.warn('极光背景不可用：', err); AUR = null; }
+try { FLOW = initFlow(); } catch (err) { console.warn('流场粒子不可用：', err); FLOW = null; }
+try { LGL = initLattice(); } catch (err) { console.warn('晶格不可用：', err); LGL = null; }
+form = { from: 0, to: S.done ? 3 : FORM_OF[S.stage], t0: -1e6 };
+window.__bp = { get S() { return S; }, get frames() { return frameN; }, get gl() { return { aur: !!AUR, flow: !!FLOW, lat: !!LGL }; }, get stage() { return S.stage; } };
+layoutAll(); updateDom(.12);
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

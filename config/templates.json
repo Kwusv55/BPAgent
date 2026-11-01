@@ -1,0 +1,69 @@
+{
+  "templates": [
+    {
+      "id": "standard",
+      "name": "标准分工（推荐）",
+      "description": "Codex 当组长并承担主力实现，dsh 做简单活，Claude 只接难题并做一次终审",
+      "leaderId": "codex",
+      "memberIds": ["dsh", "codex", "claude"],
+      "policy": "auto",
+      "isolation": "auto",
+      "maxRounds": 2,
+      "maxParallel": 3,
+      "finalReview": true,
+      "guidance": ""
+    },
+    {
+      "id": "no-claude",
+      "name": "不用 Claude（额度紧张时）",
+      "description": "Claude 额度快用完时用：Codex 组长 + 实现，dsh 做简单活，不安排终审",
+      "leaderId": "codex",
+      "memberIds": ["dsh", "codex"],
+      "policy": "auto",
+      "isolation": "auto",
+      "maxRounds": 2,
+      "maxParallel": 3,
+      "finalReview": false,
+      "guidance": "最后要有一个任务实际运行全部测试或检查，确认没有回归。"
+    },
+    {
+      "id": "hard-bug",
+      "name": "疑难问题（Claude 定位）",
+      "description": "Claude 只做根因定位和方案，Codex 修复，dsh 补回归测试，最后 Claude 终审",
+      "leaderId": "codex",
+      "memberIds": ["claude", "codex", "dsh"],
+      "policy": "ask",
+      "isolation": "auto",
+      "maxRounds": 2,
+      "maxParallel": 2,
+      "finalReview": true,
+      "guidance": "第一个任务派给 claude（level=hard）：复现问题并定位根因，只分析、不改代码，汇报里写清楚根因、证据和修复方案。根因确认后，把修复任务派给 codex，按 claude 给出的方案实现。修复验收后，派给 dsh 补充能覆盖这个问题的回归测试并实际运行。"
+    },
+    {
+      "id": "research-doc",
+      "name": "调研 + 写文档",
+      "description": "dsh 分头收集资料，Codex 整合成文档并核对事实，不用 Claude",
+      "leaderId": "codex",
+      "memberIds": ["dsh", "codex"],
+      "policy": "auto",
+      "isolation": "shared",
+      "maxRounds": 1,
+      "maxParallel": 3,
+      "finalReview": false,
+      "guidance": "先按主题拆成几个并行的调研任务派给 dsh，每个调研任务把发现写进 notes/ 目录下各自的 md 文件，并注明信息来源。调研全部完成后，派给 codex 把笔记整合成最终文档，并逐条检查文档里的数据和说法是否都有来源支撑。"
+    },
+    {
+      "id": "bulk-edit",
+      "name": "批量改动（dsh 主力）",
+      "description": "按文件切批次并行，全部交给 dsh，最后统一验证",
+      "leaderId": "dsh",
+      "memberIds": ["dsh"],
+      "policy": "auto",
+      "isolation": "auto",
+      "maxRounds": 1,
+      "maxParallel": 2,
+      "finalReview": false,
+      "guidance": "按文件或模块把改动切成互不重叠的批次并行处理，每批说清楚具体改哪些文件。所有批次完成后，再派一个任务统一运行测试或检查，确认没有遗漏和回归。"
+    }
+  ]
+}

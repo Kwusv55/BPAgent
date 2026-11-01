@@ -1,0 +1,6 @@
+data/
+workspaces/
+worktrees/
+node_modules/
+*.log
+config/secrets.json
